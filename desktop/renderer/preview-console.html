@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kiro++ Console Preview</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <style>
+      .preview-toast {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(56, 71, 92, 0.84);
+        background: rgba(10, 17, 27, 0.96);
+        color: #d9e7f7;
+      }
+
+      .preview-toast strong {
+        color: #edf5ff;
+      }
+
+      .tab-panel[hidden] {
+        display: none;
+      }
+
+      .demo-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #8fbbe7;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">K+</div>
+          <div>
+            <h1>Kiro++</h1>
+            <p>桌面控制台演示</p>
+          </div>
+        </div>
+        <nav class="nav">
+          <button class="nav-button" data-tab="dashboard"><span>当前状态</span><small>代理、Provider、Kiro 路由和最近请求概览</small></button>
+          <button class="nav-button" data-tab="providers"><span>Provider 与模型</span><small>保存 API、导入模型列表并做连通性测试</small></button>
+          <button class="nav-button" data-tab="kiro"><span>Kiro 接入</span><small>应用配置、运行诊断、恢复备份</small></button>
+          <button class="nav-button" data-tab="logs"><span>日志与诊断</span><small>查看最近请求、状态码和失败线索</small></button>
+          <button class="nav-button" data-tab="playground"><span>模型验证</span><small>直接验证当前模型是否可用</small></button>
+        </nav>
+        <div class="status-panel">
+          <span id="proxy-pill" class="proxy-pill stopped">未启动</span>
+          <p id="proxy-endpoint">代理未启动</p>
+          <small id="proxy-status-text">这是静态交互演示，不会真实改本机状态。</small>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div id="preview-toast" class="preview-toast">
+          <strong>演示模式：</strong>
+          这里的按钮现在有交互反馈，但只会更新页面展示，不会真的启动代理、写 Kiro 配置或发送模型请求。
+        </div>
+
+        <section class="console-topbar">
+          <button class="ghost-button" data-go-home>返回首页</button>
+          <div>
+            <span class="demo-badge">interactive preview</span>
+            <h2>控制台工作台</h2>
+            <p>在这里配置 Provider、启动代理、接入 Kiro，并用日志和模型验证页排错。</p>
+          </div>
+        </section>
+
+        <section class="hero console-hero">
+          <div>
+            <span class="eyebrow">当前步骤提示</span>
+            <h3>先把路由跑通，再考虑更复杂的多模型协同。</h3>
+            <p>推荐顺序：保存 Provider -> 启动代理 -> 应用到 Kiro -> 运行诊断 -> 到模型验证页做一次最小请求。</p>
+          </div>
+          <div class="hero-actions">
+            <button data-mock-action="start-proxy">启动代理</button>
+            <button class="ghost-button" data-mock-action="apply-kiro">应用到 Kiro</button>
+            <button class="ghost-button" data-mock-action="run-diagnose">运行诊断</button>
+          </div>
+        </section>
+
+        <section class="readiness-strip">
+          <article class="readiness-card"><span class="readiness-index">01</span><h4>Provider 已配置</h4><p id="ready-provider">DeepSeek / deepseek-v4-pro</p></article>
+          <article class="readiness-card"><span class="readiness-index">02</span><h4>代理已启动</h4><p id="ready-proxy">等待启动本地代理</p></article>
+          <article class="readiness-card"><span class="readiness-index">03</span><h4>Kiro 已接入</h4><p id="ready-kiro">等待应用配置并诊断</p></article>
+          <article class="readiness-card"><span class="readiness-index">04</span><h4>可以开始测试</h4><p id="ready-playground">先完成前面三步</p></article>
+        </section>
+
+        <section id="panel-dashboard" class="tab-panel">
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>当前状态总览</h3>
+                  <p>确认代理、Provider 和默认模型是否已经进入可测试状态。</p>
+                </div>
+              </div>
+              <dl class="facts">
+                <div><dt>代理状态</dt><dd id="dashboard-proxy-state">未启动</dd></div>
+                <div><dt>本地 Endpoint</dt><dd id="dashboard-endpoint">未启动</dd></div>
+                <div><dt>当前 Provider</dt><dd>DeepSeek</dd></div>
+                <div><dt>默认模型</dt><dd>deepseek-v4-pro</dd></div>
+              </dl>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>Kiro 环境</h3>
+                  <p>只操作用户配置，不修改安装目录。</p>
+                </div>
+              </div>
+              <dl class="facts">
+                <div><dt>已检测到安装</dt><dd>是</dd></div>
+                <div><dt>安装路径</dt><dd>E:\Kiro\Kiro.exe</dd></div>
+                <div><dt>设置路径</dt><dd>C:\Users\HU\.kiro\settings.json</dd></div>
+                <div><dt>Profile 目录</dt><dd>C:\Users\HU\.kiro\User\profiles</dd></div>
+              </dl>
+            </section>
+          </div>
+        </section>
+
+        <section id="panel-providers" class="tab-panel" hidden>
+          <div class="grid two">
+            <section class="panel span-two">
+              <div class="panel-head">
+                <div>
+                  <h3>Provider 与模型</h3>
+                  <p>保存后再测试，确认 API Key、Base URL 和模型列表都能跑通。</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label><span>Provider ID</span><input value="deepseek" readonly /></label>
+                <label><span>展示名称</span><input value="DeepSeek" readonly /></label>
+                <label><span>Provider 类型</span><input value="openai-compatible" readonly /></label>
+                <label><span>Base URL</span><input value="https://api.deepseek.com" readonly /></label>
+                <label><span>默认模型</span><input value="deepseek-v4-pro" readonly /></label>
+                <label><span>API Key</span><input type="password" value="sk-demo-preview" readonly /></label>
+              </div>
+              <label class="textarea-label">
+                <span>模型列表（每行一个）</span>
+                <textarea readonly>deepseek-v4-pro
+deepseek-v4-flash</textarea>
+              </label>
+              <div class="button-row">
+                <button data-mock-toast="已模拟保存 Provider。">保存 Provider</button>
+                <button class="ghost-button" data-mock-toast="已模拟从远程拉取模型列表。">拉取模型列表</button>
+                <button class="ghost-button" data-mock-toast="已模拟 Provider 连通性测试，结果成功。">保存并测试</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="panel-kiro" class="tab-panel" hidden>
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>应用配置</h3>
+                  <p>先检测，再应用路由，最后恢复或复查。</p>
+                </div>
+              </div>
+              <dl class="facts">
+                <div><dt>安装路径</dt><dd>E:\Kiro\Kiro.exe</dd></div>
+                <div><dt>设置路径</dt><dd>C:\Users\HU\.kiro\settings.json</dd></div>
+                <div><dt>备份目录</dt><dd>C:\Users\HU\.kiro\kiro-plus-plus\backups</dd></div>
+              </dl>
+              <div class="button-row">
+                <button data-mock-action="apply-kiro">应用配置</button>
+                <button class="ghost-button" data-mock-toast="已模拟刷新检测结果。">刷新检测</button>
+                <button class="ghost-button" data-mock-toast="已模拟恢复最近备份。">恢复备份</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>诊断结果</h3>
+                  <p>重点看 endpoint 是否覆盖、Auto 模式是否阻塞、是否还出现未支持操作。</p>
+                </div>
+              </div>
+              <dl class="facts">
+                <div><dt>localRegions</dt><dd id="diagnose-regions">-</dd></div>
+                <div><dt>autoModeBlocksByok</dt><dd id="diagnose-auto">false</dd></div>
+                <div><dt>profileAutoModeBlocksByok</dt><dd>false</dd></div>
+                <div><dt>unsupportedOperationsSeen</dt><dd id="diagnose-unsupported">-</dd></div>
+              </dl>
+              <p class="hint" id="diagnose-hint">应用配置后再运行诊断。</p>
+              <div class="button-row">
+                <button class="ghost-button" data-mock-action="run-diagnose">运行诊断</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="panel-logs" class="tab-panel" hidden>
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h3>日志与诊断</h3>
+                <p>默认只看必要字段，先用筛选缩小范围，再决定是否继续深入。</p>
+              </div>
+            </div>
+            <div class="filter-bar">
+              <input placeholder="operation" value="GenerateAssistantResponse" readonly />
+              <input placeholder="status" value="200" readonly />
+              <label class="checkbox-label">
+                <input type="checkbox" />
+                <span>只看失败</span>
+              </label>
+              <button class="ghost-button" data-mock-toast="这是静态演示筛选。">应用筛选</button>
+              <button class="ghost-button" data-mock-toast="已清空演示筛选。">清空</button>
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>time</th>
+                  <th>operation</th>
+                  <th>status</th>
+                  <th>duration</th>
+                  <th>requestId</th>
+                  <th>bodyBytes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2026-05-26T12:01:12Z</td>
+                  <td>GenerateAssistantResponse</td>
+                  <td>200</td>
+                  <td>814</td>
+                  <td>demo-req-001</td>
+                  <td>241</td>
+                </tr>
+                <tr>
+                  <td>2026-05-26T12:00:53Z</td>
+                  <td>ListAvailableModels</td>
+                  <td>200</td>
+                  <td>16</td>
+                  <td>demo-req-000</td>
+                  <td>112</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+
+        <section id="panel-playground" class="tab-panel" hidden>
+          <div class="grid two">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>模型验证</h3>
+                  <p>这里只做最小可用性验证，不承担多轮聊天历史。</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label><span>Provider</span><input value="DeepSeek" readonly /></label>
+                <label><span>模型</span><input value="deepseek-v4-pro" readonly /></label>
+              </div>
+              <label class="textarea-label">
+                <span>提示词</span>
+                <textarea id="playground-prompt">你好，请简要说明当前模型是否可用。</textarea>
+              </label>
+              <div class="button-row">
+                <button data-mock-action="send-playground">发送验证</button>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <h3>返回结果</h3>
+                  <p>确认最终命中的 `modelId`、耗时和文本响应。</p>
+                </div>
+              </div>
+              <pre id="playground-response" class="response-box">还没有返回结果。</pre>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const tabs = ["dashboard", "providers", "kiro", "logs", "playground"];
+      const toast = document.getElementById("preview-toast");
+
+      function showToast(message) {
+        toast.innerHTML = `<strong>演示反馈：</strong>${message}`;
+      }
+
+      function setActiveTab(tab) {
+        for (const key of tabs) {
+          const button = document.querySelector(`[data-tab="${key}"]`);
+          const panel = document.getElementById(`panel-${key}`);
+          if (button) {
+            button.classList.toggle("active", key === tab);
+          }
+          if (panel) {
+            panel.hidden = key !== tab;
+          }
+        }
+      }
+
+      function mockStartProxy() {
+        document.getElementById("proxy-pill").className = "proxy-pill running";
+        document.getElementById("proxy-pill").textContent = "运行中";
+        document.getElementById("proxy-endpoint").textContent = "http://127.0.0.1:43119";
+        document.getElementById("proxy-status-text").textContent = "已模拟启动本地代理。";
+        document.getElementById("dashboard-proxy-state").textContent = "运行中";
+        document.getElementById("dashboard-endpoint").textContent = "http://127.0.0.1:43119";
+        document.getElementById("ready-proxy").textContent = "http://127.0.0.1:43119";
+        document.getElementById("ready-playground").textContent = "现在可以继续应用到 Kiro。";
+        showToast("已模拟启动代理。这里不会真的监听端口，只更新页面状态。");
+      }
+
+      function mockApplyKiro() {
+        document.getElementById("ready-kiro").textContent = "已写入演示配置，等待诊断确认";
+        document.getElementById("diagnose-hint").textContent = "演示配置已应用，建议继续运行诊断。";
+        showToast("已模拟应用 Kiro 配置。真实桌面版这里会写用户设置并自动备份。");
+      }
+
+      function mockDiagnose() {
+        document.getElementById("diagnose-regions").textContent = "us-east-1, us-west-2, eu-west-1";
+        document.getElementById("diagnose-auto").textContent = "false";
+        document.getElementById("diagnose-unsupported").textContent = "[]";
+        document.getElementById("diagnose-hint").textContent = "演示诊断通过：本地 endpoint 已覆盖主要 region。";
+        document.getElementById("ready-kiro").textContent = "已覆盖 3 个 region";
+        document.getElementById("ready-playground").textContent = "可以开始模型验证";
+        showToast("已模拟运行诊断。真实桌面版这里会读取 Kiro 主设置和 profile 覆盖。");
+      }
+
+      function mockPlayground() {
+        const prompt = document.getElementById("playground-prompt").value.trim() || "你好";
+        document.getElementById("playground-response").textContent =
+          `modelId: deepseek-v4-pro\nlatencyMs: 824\n\n这是演示返回，不是真实模型响应。\n\n收到的提示词：${prompt}`;
+        showToast("已模拟模型验证返回。真实桌面版这里会调用本地 proxy 并展示实际结果。");
+      }
+
+      for (const button of document.querySelectorAll("[data-tab]")) {
+        button.addEventListener("click", () => {
+          setActiveTab(button.getAttribute("data-tab"));
+        });
+      }
+
+      for (const button of document.querySelectorAll("[data-mock-toast]")) {
+        button.addEventListener("click", () => {
+          showToast(button.getAttribute("data-mock-toast"));
+        });
+      }
+
+      for (const button of document.querySelectorAll("[data-mock-action]")) {
+        button.addEventListener("click", () => {
+          const action = button.getAttribute("data-mock-action");
+          if (action === "start-proxy") {
+            mockStartProxy();
+          }
+          if (action === "apply-kiro") {
+            mockApplyKiro();
+            setActiveTab("kiro");
+          }
+          if (action === "run-diagnose") {
+            mockDiagnose();
+            setActiveTab("kiro");
+          }
+          if (action === "send-playground") {
+            mockPlayground();
+            setActiveTab("playground");
+          }
+        });
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const initialTab = params.get("tab");
+      setActiveTab(tabs.includes(initialTab) ? initialTab : "dashboard");
+
+      document.querySelector("[data-go-home]").addEventListener("click", () => {
+        window.location.href = "./preview.html";
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kiro++ Preview</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <style>
+      .preview-shell {
+        min-height: 100vh;
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      .preview-banner {
+        max-width: 1280px;
+        margin: 0 auto;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        border: 1px solid rgba(56, 71, 92, 0.8);
+        background: rgba(7, 12, 20, 0.94);
+        border-radius: 8px;
+        padding: 14px 18px;
+      }
+
+      .preview-label {
+        font-size: 12px;
+        color: #8fbbe7;
+        text-transform: uppercase;
+      }
+
+      .preview-title {
+        margin: 4px 0 0;
+        font-size: 18px;
+      }
+
+      .preview-stack {
+        max-width: 1280px;
+        width: 100%;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+      }
+
+      .preview-note {
+        border: 1px solid rgba(56, 71, 92, 0.8);
+        background: rgba(11, 18, 29, 0.86);
+        border-radius: 8px;
+        padding: 14px 18px;
+        color: #b2bfd3;
+      }
+
+      .preview-note strong {
+        color: #edf5ff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="preview-shell">
+      <div class="preview-banner">
+        <div>
+          <div class="preview-label">可交互预览</div>
+          <h1 class="preview-title">Kiro++ 双层首页与控制台演示</h1>
+        </div>
+        <span class="proxy-pill running">演示模式</span>
+      </div>
+
+      <div class="preview-stack">
+        <div class="preview-note">
+          <strong>说明：</strong>
+          这是静态演示页，不会真的启动代理或改 Kiro 配置，但页面按钮、跳转和控制台切换现在都会有可见反馈。
+        </div>
+
+        <div class="landing-shell">
+          <header class="landing-topbar">
+            <div class="brand brand-home">
+              <div class="brand-mark">K+</div>
+              <div>
+                <h1>Kiro++</h1>
+                <p>本地 BYOK 路由与 Kiro 可视化接入台</p>
+              </div>
+            </div>
+            <button class="ghost-button" data-open-console="dashboard">打开控制台</button>
+          </header>
+
+          <main class="landing-content">
+            <section class="landing-hero">
+              <div class="hero-copy">
+                <span class="eyebrow">Windows 优先 / 本地代理 / 多模型协同</span>
+                <h2>让 Kiro 使用你自己的 API 与模型</h2>
+                <p>
+                  Kiro++ 不改原安装目录，只在本地启动代理、写入可恢复配置，并把 DeepSeek、
+                  DashScope、Moonshot、Zhipu、SiliconFlow 等 Provider 接到 Kiro。
+                </p>
+                <div class="hero-actions">
+                  <button data-open-console="providers">快速开始</button>
+                  <button class="ghost-button" data-open-console="dashboard">进入控制台</button>
+                  <button class="ghost-button" data-scroll-target="providers">查看配置示例</button>
+                  <button class="ghost-button" data-scroll-target="troubleshooting">常见问题</button>
+                </div>
+              </div>
+
+              <section class="hero-runtime">
+                <div class="hero-runtime-head">
+                  <span class="proxy-pill running">运行中</span>
+                  <small>桌面控制台已就绪。</small>
+                </div>
+                <dl class="hero-runtime-list">
+                  <div>
+                    <dt>当前 Provider</dt>
+                    <dd>DeepSeek</dd>
+                  </div>
+                  <div>
+                    <dt>默认模型</dt>
+                    <dd>deepseek-v4-pro</dd>
+                  </div>
+                  <div>
+                    <dt>本地 Endpoint</dt>
+                    <dd>http://127.0.0.1:43119</dd>
+                  </div>
+                  <div>
+                    <dt>Kiro 路由</dt>
+                    <dd>已覆盖 8 个 region</dd>
+                  </div>
+                </dl>
+              </section>
+            </section>
+
+            <section class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>三步上手</h3>
+                  <p>先配 Provider，再启代理，最后把路由应用到 Kiro。</p>
+                </div>
+                <button class="ghost-button" data-open-console="providers">从第一步开始</button>
+              </div>
+              <div class="card-grid steps-grid">
+                <article class="info-card step-card">
+                  <span class="step-index">01</span>
+                  <h4>配置 Provider</h4>
+                  <p>填写 Base URL、API Key、默认模型，并决定要暴露给 Kiro 的模型列表。</p>
+                  <button class="ghost-button" data-open-console="providers">去配置</button>
+                </article>
+                <article class="info-card step-card">
+                  <span class="step-index">02</span>
+                  <h4>启动本地代理</h4>
+                  <p>启动本地 endpoint，让 Kiro 的 CodeWhisperer / Q Developer 请求先进入 kiro++。</p>
+                  <button class="ghost-button" data-open-console="dashboard">去启动</button>
+                </article>
+                <article class="info-card step-card">
+                  <span class="step-index">03</span>
+                  <h4>应用到 Kiro</h4>
+                  <p>写入可恢复的用户配置，再运行诊断，确认 Kiro 已经走本地路由。</p>
+                  <button class="ghost-button" data-open-console="kiro">去接入</button>
+                </article>
+              </div>
+            </section>
+
+            <section id="providers" class="section-block">
+              <div class="section-head">
+                <div>
+                  <h3>常用 Provider 示例</h3>
+                  <p>首页只展示最常见配置项，详细参数和命令在 Provider 文档中。</p>
+                </div>
+              </div>
+              <div class="card-grid provider-grid">
+                <article class="info-card provider-card">
+                  <h4>DeepSeek</h4>
+                  <dl class="compact-facts">
+                    <div><dt>Base URL</dt><dd>https://api.deepseek.com</dd></div>
+                    <div><dt>推荐模型</dt><dd>deepseek-v4-pro / deepseek-v4-flash</dd></div>
+                  </dl>
+                </article>
+                <article class="info-card provider-card">
+                  <h4>DashScope / Qwen</h4>
+                  <dl class="compact-facts">
+                    <div><dt>Base URL</dt><dd>https://dashscope.aliyuncs.com/compatible-mode/v1</dd></div>
+                    <div><dt>推荐模型</dt><dd>qwen-plus</dd></div>
+                  </dl>
+                </article>
+                <article class="info-card provider-card">
+                  <h4>Moonshot / Kimi</h4>
+                  <dl class="compact-facts">
+                    <div><dt>Base URL</dt><dd>https://api.moonshot.cn/v1</dd></div>
+                    <div><dt>推荐模型</dt><dd>kimi-k2.5</dd></div>
+                  </dl>
+                </article>
+                <article class="info-card provider-card">
+                  <h4>Zhipu GLM</h4>
+                  <dl class="compact-facts">
+                    <div><dt>Base URL</dt><dd>https://open.bigmodel.cn/api/paas/v4</dd></div>
+                    <div><dt>推荐模型</dt><dd>glm-4.7</dd></div>
+                  </dl>
+                </article>
+                <article class="info-card provider-card">
+                  <h4>SiliconFlow</h4>
+                  <dl class="compact-facts">
+                    <div><dt>Base URL</dt><dd>https://api.siliconflow.cn/v1</dd></div>
+                    <div><dt>推荐模型</dt><dd>Qwen/Qwen3.5-35B-A3B</dd></div>
+                  </dl>
+                </article>
+              </div>
+            </section>
+
+            <section class="section-block two-column-section">
+              <div class="section-column">
+                <div class="section-head">
+                  <div>
+                    <h3>使用方式</h3>
+                    <p>按你的习惯选择入口，但底层都复用同一套本地代理和配置逻辑。</p>
+                  </div>
+                </div>
+                <div class="card-grid single-column-grid">
+                  <article class="info-card slim-card">
+                    <h4>桌面控制台方式</h4>
+                    <p>适合第一次接入、切换模型、看诊断和日志。</p>
+                    <button class="ghost-button" data-open-console="dashboard">打开控制台</button>
+                  </article>
+                  <article class="info-card slim-card">
+                    <h4>CLI 方式</h4>
+                    <p>适合脚本化或熟悉命令行的工作流：`configure`、`diagnose`、`restore`、`start`。</p>
+                    <button class="ghost-button" data-open-console="kiro">看接入步骤</button>
+                  </article>
+                  <article class="info-card slim-card">
+                    <h4>配置文件方式</h4>
+                    <p>适合先整理 Provider 信息，再让桌面控制台或 CLI 读取统一配置。</p>
+                    <button class="ghost-button" data-open-console="providers">看配置示例</button>
+                  </article>
+                </div>
+              </div>
+
+              <div id="troubleshooting" class="section-column">
+                <div class="section-head">
+                  <div>
+                    <h3>常见排错入口</h3>
+                    <p>先从最短路径排查，不要一上来改安装目录或怀疑 Kiro 本体。</p>
+                  </div>
+                </div>
+                <div class="card-grid single-column-grid">
+                  <article class="info-card slim-card">
+                    <h4>Kiro 没有走本地代理</h4>
+                    <p>先运行诊断，确认 `localRegions` 是否已指向本地 endpoint。</p>
+                    <button class="ghost-button" data-open-console="kiro">打开相关页面</button>
+                  </article>
+                  <article class="info-card slim-card">
+                    <h4>模型列表不显示</h4>
+                    <p>确认模型列表已保存，必要时重新从远程 `/models` 拉取。</p>
+                    <button class="ghost-button" data-open-console="providers">打开相关页面</button>
+                  </article>
+                  <article class="info-card slim-card">
+                    <h4>Chat 报错</h4>
+                    <p>查看最近失败请求，按 operation、status 和 requestId 定位问题。</p>
+                    <button class="ghost-button" data-open-console="logs">打开相关页面</button>
+                  </article>
+                  <article class="info-card slim-card">
+                    <h4>恢复原配置</h4>
+                    <p>使用最近备份恢复 Kiro 用户设置，回到未接入前状态。</p>
+                    <button class="ghost-button" data-open-console="kiro">打开相关页面</button>
+                  </article>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      for (const button of document.querySelectorAll("[data-open-console]")) {
+        button.addEventListener("click", () => {
+          const tab = button.getAttribute("data-open-console") || "dashboard";
+          window.location.href = `./preview-console.html?tab=${encodeURIComponent(tab)}`;
+        });
+      }
+
+      for (const button of document.querySelectorAll("[data-scroll-target]")) {
+        button.addEventListener("click", () => {
+          const targetId = button.getAttribute("data-scroll-target");
+          const target = targetId ? document.getElementById(targetId) : null;
+          if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+node_modules/
+.env
+.kiro-plus-plus/
+logs/
+*.log
+dist/
+release/
+desktop/renderer/dist/
+website/node_modules/
+website/dist/

@@ -1,0 +1,97 @@
+{
+  "name": "kiro-plus-plus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./desktop/main/electron-main.js",
+  "description": "Local BYOK proxy and configuration helper for Kiro.",
+  "author": "HU",
+  "bin": {
+    "kiro-plus-plus": "./src/cli/main.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "start": "node ./src/proxy/server.js",
+    "desktop:renderer": "vite --config desktop/renderer/vite.config.ts",
+    "desktop:shell": "electron .",
+    "desktop:dev": "node ./scripts/desktop-dev.mjs",
+    "desktop:launch-kiro": "electron . --launch-kiro",
+    "desktop:build": "vite build --config desktop/renderer/vite.config.ts",
+    "desktop:package": "npm run desktop:build && electron-builder --win nsis"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@aws-crypto/crc32": "^5.2.0",
+    "@smithy/eventstream-codec": "^4.3.4",
+    "keytar": "^7.9.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.29",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  },
+  "build": {
+    "appId": "dev.kiroplusplus.console",
+    "productName": "Kiro++ Console",
+    "icon": "desktop/assets/kiro.png",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/main/**/*",
+      "desktop/shared/**/*",
+      "desktop/renderer/dist/**/*",
+      "src/**/*",
+      "package.json"
+    ],
+    "extraFiles": [
+      {
+        "from": "README.md",
+        "to": "docs/README.md"
+      },
+      {
+        "from": "docs",
+        "to": "docs"
+      },
+      {
+        "from": "planning/project-kiro-plus-plus.md",
+        "to": "docs/project-kiro-plus-plus.md"
+      },
+      {
+        "from": "scripts/launch-kiro.cmd",
+        "to": "Launch Kiro with Kiro++.cmd"
+      }
+    ],
+    "win": {
+      "icon": "desktop/assets/kiro.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "kiro-plus-plus-${version}-${arch}.${ext}",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Kiro++ Console",
+      "installerIcon": "desktop/assets/kiro.ico",
+      "uninstallerIcon": "desktop/assets/kiro.ico",
+      "installerHeaderIcon": "desktop/assets/kiro.ico"
+    }
+  }
+}

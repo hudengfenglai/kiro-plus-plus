@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Kiro++ 是一个 Windows 优先的本地 BYOK 路由与控制台，让 Kiro 使用你自己的 API 与模型，不改原安装目录，可恢复、可诊断、可打包。"
+    />
+    <link rel="icon" type="image/png" href="/kiro-logo.png" />
+    <title>Kiro++ | 让 Kiro 使用你自己的 API 与模型</title>
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="topbar">
+        <a class="brand" href="#hero" aria-label="Kiro++ Home">
+          <img src="/kiro-logo.png" alt="Kiro++ logo" />
+          <div>
+            <strong>Kiro++</strong>
+            <span>Windows-first local BYOK console</span>
+          </div>
+        </a>
+        <nav class="topnav">
+          <a href="#product">产品能力</a>
+          <a href="#presets">Provider 预设</a>
+          <a href="#install">接入方式</a>
+          <a href="#faq">发布说明</a>
+        </nav>
+      </header>
+
+      <main>
+        <section id="hero" class="hero-band">
+          <div class="hero-copy">
+            <p class="eyebrow">不改 Kiro 安装目录 / 本地透明 / 可恢复配置 / 国内 Provider 预设</p>
+            <h1>让 Kiro 使用你自己的 API 与模型</h1>
+            <p class="hero-text">
+              Kiro++ 把 Kiro 需要的本地 BYOK 路由、模型切换、故障诊断和恢复配置做成一个
+              Windows 桌面控制台。你不需要改原安装文件，也不需要伪造账号。
+            </p>
+            <div class="cta-row">
+              <a class="primary-link" href="#install">查看接入步骤</a>
+              <a class="secondary-link" href="#product">看当前能力</a>
+            </div>
+            <dl class="hero-facts">
+              <div>
+                <dt>当前交付</dt>
+                <dd>Electron 控制台 + NSIS 安装包</dd>
+              </div>
+              <div>
+                <dt>目标用户</dt>
+                <dd>个人开发者 / 国内 API BYOK 用户</dd>
+              </div>
+              <div>
+                <dt>默认路线</dt>
+                <dd>DeepSeek / DashScope / Moonshot / Zhipu / SiliconFlow</dd>
+              </div>
+            </dl>
+          </div>
+
+          <div class="hero-stage" aria-label="Kiro++ product preview">
+            <div class="stage-glow"></div>
+            <article class="stage-panel stage-sidebar">
+              <div class="stage-panel-head">
+                <span class="stage-dot"></span>
+                <span class="stage-dot"></span>
+                <span class="stage-dot"></span>
+              </div>
+              <div class="stage-brand">
+                <img src="/kiro-logo.png" alt="Kiro++ mark" />
+                <div>
+                  <strong>Kiro++ Console</strong>
+                  <span>BYOK 已启用</span>
+                </div>
+              </div>
+              <ul class="stage-nav">
+                <li class="is-active">当前状态</li>
+                <li>Provider 与模型</li>
+                <li>Kiro 接入</li>
+                <li>日志与诊断</li>
+                <li>模型验证</li>
+              </ul>
+            </article>
+
+            <article class="stage-panel stage-main">
+              <div class="stage-ribbon">当前步骤建议</div>
+              <h2>先把路由跑通，再考虑更复杂的多模型协同。</h2>
+              <p>
+                推荐顺序：保存 Provider -> 测试连通性 -> 启用 BYOK -> 运行诊断 ->
+                启动 Kiro。
+              </p>
+              <div class="stage-grid">
+                <section>
+                  <span>本地 Endpoint</span>
+                  <strong>127.0.0.1:43119</strong>
+                </section>
+                <section>
+                  <span>默认模型</span>
+                  <strong>deepseek-v4-pro</strong>
+                </section>
+                <section>
+                  <span>最近成功请求</span>
+                  <strong>GenerateAssistantResponse</strong>
+                </section>
+                <section>
+                  <span>备份状态</span>
+                  <strong>可恢复</strong>
+                </section>
+              </div>
+              <div class="stage-actions">
+                <span>启动代理</span>
+                <span>应用到 Kiro</span>
+                <span>运行诊断</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="product" class="section-band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">产品能力</p>
+              <h2>它解决的不是“能不能接”，而是“接进去以后能不能稳定用”</h2>
+            </div>
+            <p class="section-note">
+              对 LinuxDO 这种技术社区，真正有说服力的是能安装、能恢复、能排错，不是空泛的模型列表。
+            </p>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <h3>本地 BYOK 路由</h3>
+              <p>把 Kiro 的 CodeWhisperer / Q Developer 请求转到你的 Provider Key，不改原安装目录。</p>
+            </article>
+            <article class="feature-card">
+              <h3>多模型协同</h3>
+              <p>同一 API 下可挂多个主流模型，优先覆盖 DeepSeek V4 Pro / Flash 这类高频路线。</p>
+            </article>
+            <article class="feature-card">
+              <h3>一键启停与恢复</h3>
+              <p>BYOK ON 表示应用本地路由；BYOK OFF 表示恢复最近 Kiro 原始备份。</p>
+            </article>
+            <article class="feature-card">
+              <h3>失败优先诊断</h3>
+              <p>最近失败请求、脱敏摘要、Auto 模式阻塞、未支持操作都会直接暴露出来。</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="presets" class="section-band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Provider 预设</p>
+              <h2>首版只做高频路线，不追求虚高的全量目录</h2>
+            </div>
+          </div>
+          <div class="preset-grid">
+            <article class="preset-card">
+              <h3>DeepSeek</h3>
+              <p class="preset-url">https://api.deepseek.com</p>
+              <p>推荐：deepseek-v4-pro / deepseek-v4-flash</p>
+            </article>
+            <article class="preset-card">
+              <h3>DashScope / Qwen</h3>
+              <p class="preset-url">https://dashscope.aliyuncs.com/compatible-mode/v1</p>
+              <p>推荐：qwen-plus / qwen-max</p>
+            </article>
+            <article class="preset-card">
+              <h3>Moonshot / Kimi</h3>
+              <p class="preset-url">https://api.moonshot.cn/v1</p>
+              <p>推荐：kimi-k2.5</p>
+            </article>
+            <article class="preset-card">
+              <h3>Zhipu GLM</h3>
+              <p class="preset-url">https://open.bigmodel.cn/api/paas/v4</p>
+              <p>推荐：glm-4.7</p>
+            </article>
+            <article class="preset-card">
+              <h3>SiliconFlow</h3>
+              <p class="preset-url">https://api.siliconflow.cn/v1</p>
+              <p>推荐：Qwen/Qwen3.5-35B-A3B</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="install" class="section-band section-split">
+          <div class="section-column">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">接入方式</p>
+                <h2>给第一次接触的人一个最短路径</h2>
+              </div>
+            </div>
+            <div class="steps-list">
+              <article class="step-card">
+                <span>01</span>
+                <div>
+                  <h3>安装依赖并通过测试</h3>
+                  <p>先确认当前版本可构建、可打包、可运行，再谈发帖和分发。</p>
+                </div>
+              </article>
+              <article class="step-card">
+                <span>02</span>
+                <div>
+                  <h3>在桌面控制台选择 Provider 预设</h3>
+                  <p>优先走 DeepSeek 或 DashScope，保存并测试后再改 Kiro 配置。</p>
+                </div>
+              </article>
+              <article class="step-card">
+                <span>03</span>
+                <div>
+                  <h3>启用 BYOK 并启动 Kiro</h3>
+                  <p>确认 Diagnose 没有阻塞项后，再从 Launch 入口拉起 Kiro 发第一条消息。</p>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <div class="section-column code-column">
+            <article class="code-card">
+              <div class="code-head">
+                <h3>桌面方式</h3>
+                <button type="button" data-copy="#desktop-flow">复制</button>
+              </div>
+              <pre id="desktop-flow"><code>npm install
+npm test
+npm run desktop:dev
+npm run desktop:package</code></pre>
+            </article>
+
+            <article class="code-card">
+              <div class="code-head">
+                <h3>CLI 方式</h3>
+                <button type="button" data-copy="#cli-flow">复制</button>
+              </div>
+              <pre id="cli-flow"><code>node .\src\cli\main.js configure
+node .\src\cli\main.js diagnose
+node .\src\cli\main.js start
+node .\src\cli\main.js restore</code></pre>
+            </article>
+
+            <article class="code-card">
+              <div class="code-head">
+                <h3>DeepSeek 示例</h3>
+                <button type="button" data-copy="#deepseek-flow">复制</button>
+              </div>
+              <pre id="deepseek-flow"><code>$env:KIRO_PLUS_PROVIDER = "openai-compatible"
+$env:KIRO_PLUS_OPENAI_API_KEY = "sk-..."
+$env:KIRO_PLUS_OPENAI_BASE_URL = "https://api.deepseek.com"
+$env:KIRO_PLUS_MODEL = "deepseek-v4-pro"</code></pre>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">可信度</p>
+              <h2>宣传可以直接讲，但该说清楚的边界不能藏</h2>
+            </div>
+          </div>
+          <div class="trust-grid">
+            <article class="trust-card">
+              <h3>它做什么</h3>
+              <ul>
+                <li>本地代理</li>
+                <li>Kiro 用户配置备份 / 写入 / 恢复</li>
+                <li>桌面控制台与安装包</li>
+                <li>日志、诊断和单次模型验证</li>
+              </ul>
+            </article>
+            <article class="trust-card">
+              <h3>它不做什么</h3>
+              <ul>
+                <li>不改 Kiro 安装目录</li>
+                <li>不伪造账号</li>
+                <li>不绕过授权或额度</li>
+                <li>不把 API Key 写进 repo 配置</li>
+              </ul>
+            </article>
+            <article class="trust-card">
+              <h3>当前版本限制</h3>
+              <ul>
+                <li>上游 SSE 仍是缓冲后转 Kiro event-stream</li>
+                <li>安装后双入口还需要干净 Windows 机再做一次人工 smoke</li>
+                <li>首发仅支持 Windows</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section id="faq" class="section-band release-band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">发帖说明</p>
+              <h2>如果准备发到 LinuxDO，建议你按这个顺序组织信息</h2>
+            </div>
+          </div>
+          <div class="release-grid">
+            <article class="release-card">
+              <h3>先放结果</h3>
+              <p>一句话说明：Kiro++ 已支持 Windows 本地 BYOK、桌面控制台、安装包和国内 Provider 预设。</p>
+            </article>
+            <article class="release-card">
+              <h3>再放边界</h3>
+              <p>明确它不碰账号伪造、不改安装目录、不绕授权，这样可信度更高。</p>
+            </article>
+            <article class="release-card">
+              <h3>最后放路径</h3>
+              <p>给出安装包、桌面接入步骤、DeepSeek 示例和恢复方式，用户会更愿意直接试。</p>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

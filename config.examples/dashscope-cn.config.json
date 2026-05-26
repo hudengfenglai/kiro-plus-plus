@@ -1,0 +1,8 @@
+{
+  "defaultProvider": "openai-compatible",
+  "openAiApiKey": "REPLACE_ME",
+  "openAiBaseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "model": "qwen-plus",
+  "modelName": "Qwen Plus (Cursor++ alibaba-cn)",
+  "port": 43119
+}

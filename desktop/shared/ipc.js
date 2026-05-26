@@ -1,0 +1,20 @@
+export const IPC_CHANNELS = {
+  appGetState: "app:get-state",
+  appBootstrap: "app:bootstrap",
+  appLaunchKiro: "app:launch-kiro",
+  appOpenResource: "app:open-resource",
+  diagnosticsExport: "diagnostics:export",
+  proxyStart: "proxy:start",
+  proxyStop: "proxy:stop",
+  proxyRestart: "proxy:restart",
+  proxySetEnabled: "proxy:set-enabled",
+  providerSave: "provider:save",
+  providerTest: "provider:test",
+  providerFetchModels: "provider:fetch-models",
+  kiroDetect: "kiro:detect",
+  kiroApplyRouting: "kiro:apply-routing",
+  kiroDiagnose: "kiro:diagnose",
+  kiroRestore: "kiro:restore",
+  logsList: "logs:list",
+  playgroundSend: "playground:send"
+};
