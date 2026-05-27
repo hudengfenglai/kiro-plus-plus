@@ -137,6 +137,13 @@ function describeError(error: unknown) {
   };
 }
 
+function requireDesktopApi() {
+  if (window.kiroPlusApp) {
+    return window.kiroPlusApp;
+  }
+  throw new Error("Desktop bridge is unavailable. Restart Kiro++ after reinstalling the latest package.");
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -306,9 +313,10 @@ export function App() {
   );
 
   async function refresh(nextFocus?: ConsoleFocus) {
+    const api = requireDesktopApi();
     const [nextState, summary] = await Promise.all([
-      window.kiroPlusApp.getState(),
-      window.kiroPlusApp.exportDiagnostics()
+      api.getState(),
+      api.exportDiagnostics()
     ]);
 
     setState(nextState);
@@ -405,7 +413,8 @@ export function App() {
 
   async function refreshLogs(nextFilters = logFilters) {
     try {
-      const rows = await window.kiroPlusApp.listLogs({
+      const api = requireDesktopApi();
+      const rows = await api.listLogs({
         operation: nextFilters.operation || undefined,
         status: nextFilters.status ? Number(nextFilters.status) : undefined,
         errorOnly: nextFilters.errorOnly
@@ -434,6 +443,7 @@ export function App() {
 
   async function handleSaveProvider() {
     if (!selectedProvider) return;
+    const api = requireDesktopApi();
     const normalizedModels = selectedProviderModels;
     const normalizedDefaultModel = normalizedModels.find((model) => model.id === selectedProvider.defaultModel)?.id
       ?? normalizedModels[0]?.id
@@ -441,7 +451,7 @@ export function App() {
 
     await runAction(
       () =>
-        window.kiroPlusApp.saveProvider({
+        api.saveProvider({
           profile: {
             ...selectedProvider,
             models: normalizedModels,
@@ -460,8 +470,9 @@ export function App() {
 
   async function handleFetchModels() {
     if (!selectedProvider) return;
+    const api = requireDesktopApi();
     const result = await runAction(
-      () => window.kiroPlusApp.fetchModels({ profile: selectedProvider, apiKey: apiKey.trim() || undefined }),
+      () => api.fetchModels({ profile: selectedProvider, apiKey: apiKey.trim() || undefined }),
       {
         pending: "正在拉取远程模型列表...",
         success: "模型列表已刷新。",
@@ -491,9 +502,10 @@ export function App() {
 
   async function handleTestProvider() {
     if (!selectedProvider) return;
+    const api = requireDesktopApi();
     const result = await runAction(
       () =>
-        window.kiroPlusApp.testProvider({
+        api.testProvider({
           profile: selectedProvider,
           apiKey: apiKey.trim() || undefined,
           modelId: selectedProvider.defaultModel,
@@ -514,9 +526,10 @@ export function App() {
 
   async function handlePlaygroundSend() {
     if (!providerForPlayground || !playgroundModelId.trim()) return;
+    const api = requireDesktopApi();
     const result = await runAction(
       () =>
-        window.kiroPlusApp.sendPlayground({
+        api.sendPlayground({
           providerId: providerForPlayground.id,
           modelId: playgroundModelId.trim(),
           prompt: playgroundPrompt
@@ -536,7 +549,7 @@ export function App() {
   async function copyDiagnosticsSummary() {
     await runAction(
       async () => {
-        const text = await window.kiroPlusApp.exportDiagnostics();
+        const text = await requireDesktopApi().exportDiagnostics();
         await navigator.clipboard.writeText(text);
         setDiagnosticsSummary(text);
         return text;
@@ -551,7 +564,7 @@ export function App() {
 
   async function openResource(resourceId: ResourceKey) {
     await runAction(
-      () => window.kiroPlusApp.openResource(resourceId),
+      () => requireDesktopApi().openResource(resourceId),
       {
         pending: "正在打开文档资源...",
         success: "文档已打开。"
@@ -686,7 +699,7 @@ export function App() {
           <button className="ghost-button" onClick={() => setView("home")}>返回首页</button>
           <button
             onClick={() =>
-              runAction(() => window.kiroPlusApp.launchKiroWithProxy(), {
+              runAction(() => requireDesktopApi().launchKiroWithProxy(), {
                 pending: "正在启动 Kiro++ 入口...",
                 success: "Kiro 启动指令已发出。",
                 afterFocus: "kiro"
@@ -849,7 +862,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.startProxy(), {
+                  runAction(() => requireDesktopApi().startProxy(), {
                     pending: "正在启动本地代理...",
                     success: "代理已启动。",
                     afterFocus: "kiro"
@@ -861,7 +874,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.restartProxy(), {
+                  runAction(() => requireDesktopApi().restartProxy(), {
                     pending: "正在重启代理...",
                     success: "代理已重启。",
                     afterFocus: "kiro"
@@ -873,7 +886,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.stopProxy(), {
+                  runAction(() => requireDesktopApi().stopProxy(), {
                     pending: "正在停止代理...",
                     success: "代理已停止。",
                     afterFocus: "kiro"
@@ -885,7 +898,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.applyRouting(), {
+                  runAction(() => requireDesktopApi().applyRouting(), {
                     pending: "正在应用 Kiro 配置...",
                     success: "Kiro 路由已应用。",
                     afterFocus: "kiro"
@@ -897,7 +910,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.setByokEnabled(!state.settings.isByokEnabled), {
+                  runAction(() => requireDesktopApi().setByokEnabled(!state.settings.isByokEnabled), {
                     pending: state.settings.isByokEnabled ? "正在关闭 BYOK..." : "正在启用 BYOK...",
                     success: state.settings.isByokEnabled ? "BYOK 已关闭。" : "BYOK 已启用。",
                     afterFocus: "kiro"
@@ -909,7 +922,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.diagnoseKiro(), {
+                  runAction(() => requireDesktopApi().diagnoseKiro(), {
                     pending: "正在运行诊断...",
                     success: "诊断已刷新。",
                     afterFocus: "logs"
@@ -921,7 +934,7 @@ export function App() {
               <button
                 className="ghost-button"
                 onClick={() =>
-                  runAction(() => window.kiroPlusApp.restoreKiro(), {
+                  runAction(() => requireDesktopApi().restoreKiro(), {
                     pending: "正在恢复最近备份...",
                     success: "最近备份已恢复。",
                     afterFocus: "kiro"
@@ -1079,7 +1092,7 @@ export function App() {
                   <button
                     className="ghost-button"
                     onClick={() =>
-                      runAction(() => window.kiroPlusApp.diagnoseKiro(), {
+                      runAction(() => requireDesktopApi().diagnoseKiro(), {
                         pending: "正在刷新诊断...",
                         success: "诊断已刷新。",
                         afterFocus: "logs"

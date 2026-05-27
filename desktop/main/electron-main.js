@@ -15,9 +15,12 @@ function createWindow() {
     backgroundColor: "#111827",
     title: "Kiro++",
     webPreferences: {
-      preload: join(__dirname, "preload.js"),
+      preload: join(__dirname, "preload.mjs"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      // The preload bridge uses Node/Electron APIs directly.
+      // Electron's default sandboxed preload environment can leave the bridge unavailable.
+      sandbox: false
     }
   });
 
