@@ -1,31 +1,34 @@
-# kiro++
+# Kiro++
 
-Windows-first local BYOK proxy and desktop control console for Kiro.
+Windows-first local BYOK router and desktop control console for Kiro.
 
-`kiro++` does not modify the installed Kiro application under `E:\Kiro`. It starts a local endpoint, writes reversible user settings, and routes Kiro's CodeWhisperer / Q Developer requests to your own provider keys.
+`kiro++` lets Kiro use your own provider keys and models without modifying the installed Kiro application directory. It runs a local endpoint, writes reversible user settings, and exposes a desktop console for provider management, diagnostics, and restore.
 
-## Current Product State
+## What It Does
 
-Implemented in V3.1:
+- Routes Kiro requests to your own provider keys.
+- Supports common domestic BYOK routes through built-in presets:
+  - DeepSeek
+  - DashScope / Qwen
+  - Moonshot / Kimi
+  - Zhipu GLM
+  - SiliconFlow
+- Provides a Windows desktop console for:
+  - provider setup and testing
+  - BYOK on/off switching
+  - Kiro detect / apply / diagnose / restore
+  - request logs and diagnostics export
+  - single-request model validation
+- Generates a Windows NSIS installer package.
 
-- OpenAI-compatible, Anthropic, and Gemini provider adapters.
-- Kiro-compatible health, model listing, usage limits, safe MCP listing, chat streaming, and autocomplete handlers.
-- Desktop runtime with:
-  - provider presets for common domestic routes
-  - BYOK enable / disable semantics
-  - Kiro detect / apply / diagnose / restore actions
-  - diagnostics export
-  - one-click `Launch Kiro with Kiro++`
-- React desktop renderer with onboarding home + control console.
-- Electron build output for the renderer and NSIS packaging config.
-- CLI commands remain available and unchanged.
+## What It Does Not Do
 
-Known limitations:
+- It does not modify `E:\Kiro` or any installed Kiro binaries.
+- It does not spoof accounts.
+- It does not bypass authorization, quotas, or official billing.
+- It does not write provider API keys into repo config files.
 
-- Provider responses are buffered and then encoded into Kiro-compatible event-stream frames. True upstream SSE passthrough is still a later task.
-- The packaged `Launch Kiro with Kiro++` batch entry is included, but Windows installer smoke on a clean machine still needs final validation.
-
-## Install First
+## Install
 
 Use Node.js 18 or newer.
 
@@ -34,73 +37,39 @@ npm install
 npm test
 ```
 
-Start the desktop renderer build:
+Build the desktop renderer:
 
 ```powershell
 npm run desktop:build
 ```
 
-Start the desktop app in development mode:
+Run the desktop app in development mode:
 
 ```powershell
 npm run desktop:dev
 ```
 
-Create the Windows installer package:
+Build the Windows installer:
 
 ```powershell
 npm run desktop:package
 ```
 
-The NSIS package is written to `release/`.
+The installer is written to `release/`.
 
-## First-Run Flow
+## Fastest Path
 
-The intended first-run order in the desktop app is:
+Recommended desktop flow:
 
-1. Detect Kiro installation
+1. Open the desktop console
 2. Select a provider preset
-3. Fill API key
+3. Fill your API key
 4. Fetch or confirm models
 5. Test provider
 6. Enable BYOK routing
 7. Launch Kiro with Kiro++
 
-## Provider Presets
-
-Built-in presets focus on common domestic BYOK routes:
-
-- DeepSeek
-- DashScope / Qwen
-- Moonshot / Kimi
-- Zhipu GLM
-- SiliconFlow
-
-Each provider can also be edited manually after applying a preset.
-
-See [docs/domestic-providers.md](docs/domestic-providers.md) for concrete base URLs and model ids.
-
-## Desktop Behaviors
-
-`BYOK ON` means:
-
-- use the selected provider profile
-- apply local Kiro routing
-- keep the latest backup path in desktop state
-
-`BYOK OFF` means:
-
-- restore the latest Kiro backup
-- mark local routing disabled in desktop state
-
-The desktop app also exposes:
-
-- `Kiro++ Console`
-- `Launch Kiro with Kiro++`
-
-## CLI Still Works
-
-If you prefer the terminal:
+CLI remains available:
 
 ```powershell
 node .\src\cli\main.js health-config
@@ -110,30 +79,42 @@ node .\src\cli\main.js start
 node .\src\cli\main.js restore
 ```
 
-## Manual Smoke Test
+## DeepSeek Example
 
-Desktop path:
+```powershell
+$env:KIRO_PLUS_PROVIDER = "openai-compatible"
+$env:KIRO_PLUS_OPENAI_API_KEY = "<DEEPSEEK_API_KEY>"
+$env:KIRO_PLUS_OPENAI_BASE_URL = "https://api.deepseek.com"
+$env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
+node .\src\cli\main.js start
+```
 
-1. Run `npm run desktop:dev`
-2. Select the DeepSeek preset
-3. Fill your API key
-4. Fetch `deepseek-v4-pro` / `deepseek-v4-flash`
-5. Save and test provider
-6. Enable BYOK
-7. Run diagnose
-8. Launch Kiro with Kiro++
-9. In Kiro, send one Agent chat request
+More provider examples: [docs/domestic-providers.md](docs/domestic-providers.md)
 
-CLI path:
+## Verification Status
 
-1. Export `KIRO_PLUS_*` environment variables
-2. Run `node .\src\cli\main.js configure`
-3. Run `node .\src\cli\main.js diagnose`
-4. Run `node .\src\cli\main.js start`
+Current verified items:
+
+- `npm test`
+- `npm run desktop:build`
+- `npm run desktop:package`
+- Kiro settings routing diagnosis returns local endpoint coverage for all configured regions
+- Real Kiro traffic has been observed hitting:
+  - `GetUsageLimits`
+  - `ListAvailableModels`
+  - `InvokeMCP`
+  - `GenerateAssistantResponse`
+
+## Current Limitations
+
+- Windows only.
+- Upstream provider responses are currently buffered and then encoded into Kiro-compatible event-stream frames.
+- Installer-level smoke on a clean Windows machine still needs broader validation.
+- Kiro UI-level smoke for every release should still be done manually before public announcements.
 
 ## Safety
 
-- `configure` backs up the existing Kiro user settings before writing.
-- `restore` copies the newest backup back to the Kiro user settings path.
-- The proxy does not spoof accounts or bypass Kiro authentication.
-- API keys are stored through the desktop secret store, not written into repo config files.
+- `configure` backs up existing Kiro user settings before writing.
+- `restore` restores the newest backup back to the Kiro settings path.
+- Desktop BYOK OFF restores the latest Kiro backup.
+- Logs redact authorization, cookies, and AWS-style security headers by default.

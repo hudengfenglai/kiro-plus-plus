@@ -4,7 +4,9 @@ node_modules/
 logs/
 *.log
 dist/
-release/
+/release/
 desktop/renderer/dist/
+website/
 website/node_modules/
 website/dist/
+tmp-favicon*
