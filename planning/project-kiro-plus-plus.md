@@ -1,6 +1,6 @@
 # Project: kiro++ BYOK Router
 
-Status: Release Prep In Progress
+Status: UI Refresh In Progress
 Priority: High
 Created: 2026-05-25
 Updated: 2026-05-27
@@ -19,26 +19,26 @@ Build a local BYOK proxy and Kiro configuration helper without modifying the ins
 - Epic 6: V3 desktop control console
 - Epic 7: V3.1 personal developer productization
 - Epic 8: Public release preparation
+- Epic 9: Three-column desktop workbench refresh
 
 ## Active Task
 
-Task: Public release readiness pass
+Task: Three-column desktop workbench refresh
 
 Status: In Progress
 
 Acceptance:
-- Public repo excludes `website/` and temporary favicon conversion files.
-- README and release docs are aligned to public release wording.
-- Release verification records package output, routing diagnosis, and Kiro request evidence.
-- A release-prep commit is ready for pushing to a public GitHub repo.
+- Home view remains available as onboarding entry.
+- Console becomes a fixed three-column workbench: left control rail, center workspace, right validation rail.
+- Existing IPC contracts remain unchanged.
+- Chinese UI copy is clean and no garbled text remains in the renderer.
+- Renderer build and existing automated tests pass.
 
 Verification:
 - `npm test` passes with 40 tests.
 - `npm run desktop:build` succeeds.
-- `npm run desktop:package` succeeds and emits `release/kiro-plus-plus-0.1.0-x64.exe`.
-- `node .\src\cli\main.js diagnose` reports 8 local regions, no missing regions, no Auto-mode block, and no unsupported operations.
-- `.\.kiro-plus-plus\requests.jsonl` contains real Kiro traffic hitting `GetUsageLimits`, `ListAvailableModels`, `InvokeMCP`, and `GenerateAssistantResponse`.
-- A fresh real-provider smoke is still pending because no reusable Provider API key is currently present in the desktop secret store or shell environment.
+- `npx tsc -p tsconfig.json --noEmit` succeeds.
+- Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.
 
 ## Backlog
 
@@ -47,3 +47,4 @@ Verification:
 - V3.1: verify the `Launch Kiro with Kiro++` packaged entry on a clean Windows machine.
 - V3.1: replace preview-only pages with screenshot assets captured from the real Electron app.
 - Epic 8: push the first public source snapshot once the GitHub remote exists and local credentials are available.
+- Epic 9: capture fresh screenshots from the real Electron shell after provider keys are available for end-to-end smoke.

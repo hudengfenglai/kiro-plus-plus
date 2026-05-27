@@ -16,7 +16,7 @@
     "desktop:shell": "electron .",
     "desktop:dev": "node ./scripts/desktop-dev.mjs",
     "desktop:launch-kiro": "electron . --launch-kiro",
-    "desktop:build": "vite build --config desktop/renderer/vite.config.ts",
+    "desktop:build": "vite build --config desktop/renderer/vite.config.ts --base ./",
     "desktop:package": "npm run desktop:build && electron-builder --win nsis"
   },
   "engines": {
