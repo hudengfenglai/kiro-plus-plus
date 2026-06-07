@@ -55,6 +55,19 @@ export interface KiroDiagnoseReport {
   hint: string;
 }
 
+export interface DiagnosticsExportBundle {
+  exportedAt: string;
+  bundleName: string;
+  bundleDir: string;
+  readmePath: string;
+  summaryPath: string;
+  jsonPath: string;
+  requestsPath: string;
+  manifestPath: string;
+  zipPath?: string;
+  text: string;
+}
+
 export interface BootstrapStep {
   key: string;
   title: string;
@@ -99,6 +112,11 @@ export interface AppState {
       captureHeaders: boolean;
       captureBodies: boolean;
     };
+    runtime: {
+      exportHistory: DiagnosticsExportBundle[];
+      lastExportBundle: DiagnosticsExportBundle | null;
+      selectedExportBundleName: string | null;
+    };
   };
   proxyStatus: ProxyStatus;
   kiroDetection: {
@@ -120,4 +138,6 @@ export interface AppState {
   readinessIssues: ReadinessIssue[];
   lastSuccessfulProviderTest: AppState["settings"]["lastSuccessfulProviderTest"];
   lastAppliedKiroBackup: AppState["settings"]["lastAppliedKiroBackup"];
+  exportHistory: DiagnosticsExportBundle[];
+  lastExportBundle: DiagnosticsExportBundle | null;
 }

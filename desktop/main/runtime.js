@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 
 import { normalizeAppSettings } from "../../src/config.js";
 
@@ -48,9 +49,85 @@ function formatSupportBundleReadme() {
     "",
     "Notes:",
     "- Secrets should already be redacted before export.",
+    "- Local filesystem paths inside exported files are redacted by default for safer public sharing.",
     "- Share this bundle only when you are comfortable revealing model ids, endpoint metadata, and request timing.",
     "- This bundle is generated locally by Kiro++."
   ].join("\n");
+}
+
+function sanitizePathForShare(value) {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (!/^[A-Za-z]:[\\/]/.test(trimmed) && !trimmed.startsWith("/") && !/[\\/]/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const cleaned = trimmed.replace(/[\\/]+$/, "");
+  const parts = cleaned.split(/[\\/]/).filter(Boolean);
+  const tail = parts.at(-1) ?? cleaned;
+  return `<path:${tail}>`;
+}
+
+function sanitizeTextForShare(text, values = []) {
+  return values
+    .filter((value) => typeof value === "string" && value.trim())
+    .sort((left, right) => right.length - left.length)
+    .reduce((output, value) => output.split(value).join(sanitizePathForShare(value)), text);
+}
+
+function sanitizeKiroDetectionForShare(kiroDetection) {
+  if (!kiroDetection) {
+    return kiroDetection;
+  }
+
+  const pathValues = [
+    kiroDetection.installPath,
+    ...(kiroDetection.searchedInstallPaths ?? []),
+    kiroDetection.settingsPath,
+    kiroDetection.profilesDir,
+    kiroDetection.backupDir,
+    kiroDetection.lastBackup?.backupPath
+  ];
+
+  return {
+    ...kiroDetection,
+    installPath: sanitizePathForShare(kiroDetection.installPath),
+    searchedInstallPaths: (kiroDetection.searchedInstallPaths ?? []).map((value) => sanitizePathForShare(value)),
+    detectionHint: sanitizeTextForShare(kiroDetection.detectionHint ?? "-", pathValues),
+    settingsPath: sanitizePathForShare(kiroDetection.settingsPath),
+    profilesDir: sanitizePathForShare(kiroDetection.profilesDir),
+    backupDir: sanitizePathForShare(kiroDetection.backupDir),
+    lastBackup: kiroDetection.lastBackup
+      ? {
+        ...kiroDetection.lastBackup,
+        backupPath: sanitizePathForShare(kiroDetection.lastBackup.backupPath)
+      }
+      : kiroDetection.lastBackup
+  };
+}
+
+function sanitizeStateForShare(state) {
+  const kiroDetection = sanitizeKiroDetectionForShare(state.kiroDetection);
+  return {
+    ...state,
+    kiroDetection,
+    settings: {
+      ...state.settings,
+      lastAppliedKiroBackup: state.settings.lastAppliedKiroBackup
+        ? {
+          ...state.settings.lastAppliedKiroBackup,
+          backupPath: sanitizePathForShare(state.settings.lastAppliedKiroBackup.backupPath)
+        }
+        : state.settings.lastAppliedKiroBackup
+    }
+  };
 }
 
 function deriveBootstrapState({ settings, kiroDetection, proxyStatus, diagnose }) {
@@ -281,6 +358,7 @@ export class DesktopRuntime {
     kiroService,
     logService,
     diagnosticsExportDir = join(process.cwd(), ".kiro-plus-plus", "exports"),
+    zipBundle = null,
     now = () => new Date()
   }) {
     this.settingsStore = settingsStore;
@@ -290,6 +368,7 @@ export class DesktopRuntime {
     this.kiroService = kiroService;
     this.logService = logService;
     this.diagnosticsExportDir = diagnosticsExportDir;
+    this.zipBundle = zipBundle ?? defaultZipBundle;
     this.now = now;
   }
 
@@ -335,6 +414,68 @@ export class DesktopRuntime {
     return this.settingsStore.save(normalizeAppSettings(nextSettings));
   }
 
+  async saveLastExportBundle(bundle) {
+    const settings = await this.settingsStore.load();
+    const previousHistory = settings.runtime?.exportHistory ?? [];
+    const nextHistory = [
+      bundle,
+      ...previousHistory.filter((item) => item.bundleName !== bundle.bundleName)
+    ].slice(0, 5);
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+      ...settings.runtime,
+        exportHistory: nextHistory,
+        lastExportBundle: bundle,
+        selectedExportBundleName: bundle.bundleName
+      }
+    });
+  }
+
+  async selectExportBundle(bundleName) {
+    const settings = await this.settingsStore.load();
+    const exportHistory = settings.runtime?.exportHistory ?? [];
+    const selectedBundle = exportHistory.find((item) => item.bundleName === bundleName);
+    if (!selectedBundle) {
+      throw new Error(`未找到支持包：${bundleName}`);
+    }
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        selectedExportBundleName: bundleName
+      }
+    });
+    return this.getState();
+  }
+
+  async deleteExportBundle(bundleName) {
+    const settings = await this.settingsStore.load();
+    const exportHistory = settings.runtime?.exportHistory ?? [];
+    const nextHistory = exportHistory.filter((item) => item.bundleName !== bundleName);
+    if (nextHistory.length === exportHistory.length) {
+      throw new Error(`未找到支持包：${bundleName}`);
+    }
+    const currentSelected = settings.runtime?.selectedExportBundleName ?? null;
+    const nextSelected = currentSelected === bundleName
+      ? (nextHistory[0]?.bundleName ?? null)
+      : currentSelected;
+    const nextLastExportBundle = nextHistory.find((item) => item.bundleName === nextSelected)
+      ?? nextHistory[0]
+      ?? null;
+
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        exportHistory: nextHistory,
+        lastExportBundle: nextLastExportBundle,
+        selectedExportBundleName: nextSelected ?? nextLastExportBundle?.bundleName ?? null
+      }
+    });
+    return this.getState();
+  }
+
   async getState() {
     const settings = await this.settingsStore.load();
     const selectedProvider = await this.getSelectedProvider(settings);
@@ -369,6 +510,12 @@ export class DesktopRuntime {
       diagnose
     });
 
+    const exportHistory = settings.runtime?.exportHistory ?? [];
+    const selectedExportBundleName = settings.runtime?.selectedExportBundleName ?? null;
+    const selectedBundle = exportHistory.find((item) => item.bundleName === selectedExportBundleName)
+      ?? settings.runtime?.lastExportBundle
+      ?? null;
+
     return {
       settings,
       proxyStatus,
@@ -378,7 +525,9 @@ export class DesktopRuntime {
       bootstrap,
       readinessIssues,
       lastSuccessfulProviderTest: settings.lastSuccessfulProviderTest,
-      lastAppliedKiroBackup: settings.lastAppliedKiroBackup
+      lastAppliedKiroBackup: settings.lastAppliedKiroBackup,
+      exportHistory,
+      lastExportBundle: selectedBundle
     };
   }
 
@@ -497,16 +646,18 @@ export class DesktopRuntime {
   }
 
   async exportDiagnostics() {
-    return formatDiagnosticsSummary(await this.getState());
+    return formatDiagnosticsSummary(sanitizeStateForShare(await this.getState()));
   }
 
   async exportDiagnosticsToFile() {
     const state = await this.getState();
-    const text = formatDiagnosticsSummary(state);
+    const sharedState = sanitizeStateForShare(state);
+    const text = formatDiagnosticsSummary(sharedState);
     const fileText = [text, "", formatRecentRequestSnapshot(state.recentLogs)].join("\n");
     const exportedAt = this.now().toISOString();
     const stamp = exportedAt.replace(/[:.]/g, "-");
-    const bundleDir = join(this.diagnosticsExportDir, `kiro-plus-plus-diagnostics-${stamp}`);
+    const bundleName = `kiro-plus-plus-diagnostics-${stamp}`;
+    const bundleDir = join(this.diagnosticsExportDir, bundleName);
     const readmePath = join(bundleDir, "README.txt");
     const summaryPath = join(bundleDir, "summary.txt");
     const jsonPath = join(bundleDir, "snapshot.json");
@@ -518,24 +669,65 @@ export class DesktopRuntime {
     await writeFile(jsonPath, `${JSON.stringify({
       exportedAt,
       summary: text,
-      proxyStatus: state.proxyStatus,
-      kiroDetection: state.kiroDetection,
-      diagnose: state.diagnose,
-      readinessIssues: state.readinessIssues,
+      proxyStatus: sharedState.proxyStatus,
+      kiroDetection: sharedState.kiroDetection,
+      diagnose: sharedState.diagnose,
+      readinessIssues: sharedState.readinessIssues,
       recentLogs: state.recentLogs
     }, null, 2)}\n`, "utf8");
     await writeFile(requestsPath, `${JSON.stringify(state.recentLogs, null, 2)}\n`, "utf8");
     await writeFile(manifestPath, `${JSON.stringify({
       exportedAt,
-      bundleDir,
+      bundleName,
       files: {
-        readmePath,
-        summaryPath,
-        jsonPath,
-        requestsPath
+        readme: "README.txt",
+        summary: "summary.txt",
+        snapshot: "snapshot.json",
+        requests: "recent-requests.json"
       }
     }, null, 2)}\n`, "utf8");
-    return { bundleDir, readmePath, summaryPath, jsonPath, requestsPath, manifestPath, text: fileText };
+    const bundle = {
+      exportedAt,
+      bundleName,
+      bundleDir,
+      readmePath,
+      summaryPath,
+      jsonPath,
+      requestsPath,
+      manifestPath,
+      text: fileText
+    };
+    await this.saveLastExportBundle(bundle);
+    return bundle;
+  }
+
+  async exportDiagnosticsZip() {
+    const bundle = await this.exportDiagnosticsToFile();
+    const zipPath = `${bundle.bundleDir}.zip`;
+    await this.zipBundle({
+      bundleDir: bundle.bundleDir,
+      zipPath
+    });
+    const result = {
+      ...bundle,
+      zipPath
+    };
+    await this.saveLastExportBundle(result);
+    return result;
+  }
+
+  async clearDiagnosticsHistory() {
+    const settings = await this.settingsStore.load();
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        exportHistory: [],
+        lastExportBundle: null,
+        selectedExportBundleName: null
+      }
+    });
+    return this.getState();
   }
 
   async sendPlayground(payload) {
@@ -562,4 +754,28 @@ export class DesktopRuntime {
     const detection = await this.detectKiroOrThrow();
     return this.kiroService.launchKiro(detection.installPath);
   }
+}
+
+function defaultZipBundle({ bundleDir, zipPath }) {
+  return new Promise((resolve, reject) => {
+    const command = [
+      "-NoProfile",
+      "-Command",
+      `Compress-Archive -LiteralPath '${bundleDir.replace(/'/g, "''")}' -DestinationPath '${zipPath.replace(/'/g, "''")}' -Force`
+    ];
+
+    const child = spawn("powershell.exe", command, {
+      stdio: "ignore",
+      windowsHide: true
+    });
+
+    child.once("error", reject);
+    child.once("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`Compress-Archive failed with exit code ${code}`));
+    });
+  });
 }

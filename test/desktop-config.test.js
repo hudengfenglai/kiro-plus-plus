@@ -72,3 +72,42 @@ test("PROVIDER_PRESETS expose common domestic openai-compatible providers", () =
   assert.equal(PROVIDER_PRESETS.dashscope.type, "openai-compatible");
   assert.match(PROVIDER_PRESETS.siliconflow.models[0], /Qwen/);
 });
+
+test("normalizeAppSettings preserves last exported support bundle metadata", () => {
+  const settings = normalizeAppSettings({
+    runtime: {
+      exportHistory: [
+        {
+          exportedAt: "2026-06-08T10:25:30.000Z",
+          bundleName: "kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z",
+          bundleDir: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z",
+          readmePath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\README.txt",
+          summaryPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\summary.txt",
+          jsonPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\snapshot.json",
+          requestsPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\recent-requests.json",
+          manifestPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\manifest.json",
+          text: "summary-2"
+        }
+      ],
+      lastExportBundle: {
+        exportedAt: "2026-06-08T10:20:30.000Z",
+        bundleName: "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z",
+        bundleDir: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z",
+        readmePath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\README.txt",
+        summaryPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\summary.txt",
+        jsonPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\snapshot.json",
+        requestsPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\recent-requests.json",
+        manifestPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\manifest.json",
+        zipPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z.zip",
+        text: "summary"
+      }
+    }
+  });
+
+  assert.equal(settings.runtime.exportHistory.length, 1);
+  assert.equal(settings.runtime.exportHistory[0].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z");
+  assert.equal(settings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
+  assert.equal(settings.runtime.lastExportBundle?.exportedAt, "2026-06-08T10:20:30.000Z");
+  assert.match(settings.runtime.lastExportBundle?.zipPath ?? "", /\.zip$/);
+  assert.equal(settings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
+});

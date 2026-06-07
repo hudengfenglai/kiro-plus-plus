@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { AppState, PlaygroundRequest } from "../../shared/types";
+import type { AppState, DiagnosticsExportBundle, PlaygroundRequest } from "../../shared/types";
 
 declare global {
   interface Window {
@@ -11,7 +11,11 @@ declare global {
       openResource: (resourceId: string) => Promise<unknown>;
       openPath: (target: string) => Promise<unknown>;
       exportDiagnostics: () => Promise<string>;
-      exportDiagnosticsToFile: () => Promise<{ bundleDir: string; readmePath: string; summaryPath: string; jsonPath: string; requestsPath: string; manifestPath: string; text: string }>;
+      exportDiagnosticsToFile: () => Promise<DiagnosticsExportBundle>;
+      exportDiagnosticsZip: () => Promise<DiagnosticsExportBundle>;
+      clearDiagnosticsHistory: () => Promise<AppState>;
+      selectDiagnosticsBundle: (bundleName: string) => Promise<AppState>;
+      deleteDiagnosticsBundle: (bundleName: string) => Promise<AppState>;
       startProxy: () => Promise<unknown>;
       stopProxy: () => Promise<unknown>;
       restartProxy: () => Promise<unknown>;

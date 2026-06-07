@@ -14,6 +14,9 @@ const DEFAULT_KIRO = {
 };
 const DEFAULT_LAST_SUCCESSFUL_PROVIDER_TEST = null;
 const DEFAULT_LAST_APPLIED_KIRO_BACKUP = null;
+const DEFAULT_LAST_EXPORT_BUNDLE = null;
+const DEFAULT_EXPORT_HISTORY = [];
+const MAX_EXPORT_HISTORY = 5;
 
 function normalizeTimestamp(value) {
   if (!value) return null;
@@ -155,6 +158,47 @@ function normalizeBackupMetadata(value = DEFAULT_LAST_APPLIED_KIRO_BACKUP) {
   };
 }
 
+function normalizeDiagnosticsExportBundle(value = DEFAULT_LAST_EXPORT_BUNDLE) {
+  if (!value || typeof value !== "object") return null;
+  if (!value.exportedAt || !value.bundleName || !value.bundleDir || !value.readmePath || !value.summaryPath || !value.jsonPath || !value.requestsPath || !value.manifestPath) {
+    return null;
+  }
+  return {
+    exportedAt: normalizeTimestamp(value.exportedAt),
+    bundleName: String(value.bundleName),
+    bundleDir: String(value.bundleDir),
+    readmePath: String(value.readmePath),
+    summaryPath: String(value.summaryPath),
+    jsonPath: String(value.jsonPath),
+    requestsPath: String(value.requestsPath),
+    manifestPath: String(value.manifestPath),
+    zipPath: value.zipPath ? String(value.zipPath) : undefined,
+    text: String(value.text ?? "")
+  };
+}
+
+function normalizeDiagnosticsExportHistory(value = DEFAULT_EXPORT_HISTORY) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map(normalizeDiagnosticsExportBundle)
+    .filter(Boolean)
+    .slice(0, MAX_EXPORT_HISTORY);
+}
+
+function normalizeSelectedExportBundleName(value, exportHistory, lastExportBundle) {
+  if (typeof value !== "string" || !value.trim()) {
+    return lastExportBundle?.bundleName ?? null;
+  }
+  const bundleName = value.trim();
+  const exists = exportHistory.some((item) => item.bundleName === bundleName);
+  if (exists) {
+    return bundleName;
+  }
+  return lastExportBundle?.bundleName ?? null;
+}
+
 export function buildProviderProfileFromPreset(presetId) {
   const preset = PROVIDER_PRESETS[presetId];
   if (!preset) {
@@ -182,6 +226,12 @@ export function normalizeAppSettings(input = {}) {
   const selectedProviderId = providerIds.has(input.selectedProviderId)
     ? input.selectedProviderId
     : providers[0]?.id ?? DEFAULT_PROVIDER_ID;
+  const exportHistory = normalizeDiagnosticsExportHistory(
+    input.runtime?.exportHistory
+  );
+  const lastExportBundle = normalizeDiagnosticsExportBundle(
+    input.runtime?.lastExportBundle ?? input.lastExportBundle
+  );
 
   return {
     selectedProviderId,
@@ -200,6 +250,15 @@ export function normalizeAppSettings(input = {}) {
     logging: {
       ...DEFAULT_LOGGING,
       ...input.logging
+    },
+    runtime: {
+      exportHistory,
+      lastExportBundle,
+      selectedExportBundleName: normalizeSelectedExportBundleName(
+        input.runtime?.selectedExportBundleName,
+        exportHistory,
+        lastExportBundle
+      )
     }
   };
 }

@@ -702,6 +702,115 @@ pre {
   color: var(--text-main);
 }
 
+.export-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.compact-export-card {
+  margin-top: 12px;
+}
+
+.export-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.export-card-head strong {
+  display: block;
+  margin-top: 6px;
+}
+
+.export-card-head small {
+  color: var(--text-soft);
+  white-space: nowrap;
+}
+
+.export-hint {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export-history {
+  display: grid;
+  gap: 8px;
+}
+
+.export-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.export-history-head small {
+  color: var(--text-soft);
+}
+
+.export-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.history-chip {
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 4px;
+  background: var(--panel-alt-bg);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.history-chip span,
+.history-chip small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-chip small {
+  color: var(--text-soft);
+}
+
+.history-chip.active {
+  border-color: var(--border-active);
+  background: var(--panel-ghost-bg);
+}
+
+.history-delete {
+  white-space: nowrap;
+}
+
+.compact-export-history .history-chip {
+  padding: 8px 10px;
+}
+
+.compact-export-actions .ghost-button {
+  flex: 1 1 120px;
+}
+
 .empty-row {
   color: var(--text-soft);
   margin: 0;

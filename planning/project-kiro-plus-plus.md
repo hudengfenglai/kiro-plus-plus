@@ -51,9 +51,21 @@ Recent Progress:
 - Reshaped support export into a timestamped bundle directory containing `summary.txt`, `snapshot.json`, and `recent-requests.json` for cleaner handoff and future automation.
 - Added `manifest.json` plus a desktop open-path bridge so exported support bundles are self-describing and can be opened directly from the workbench.
 - Added `README.txt` and richer snapshot JSON fields (`proxyStatus`, `kiroDetection`, `diagnose`) so support bundles are easier to interpret without reading source code.
+- Replaced renderer-side export directory lookup via status text parsing with explicit export bundle state to make the diagnostics actions reliable in packaged builds.
+- Added one-click zip support bundle export so Windows users can share a single diagnostics archive instead of a raw folder tree.
+- Redacted local filesystem paths inside exported diagnostics summaries, snapshots, and manifests so support bundles are safer to post publicly.
+- Added a structured "latest support bundle" panel in the workbench so exported diagnostics are surfaced as product feedback instead of raw status text.
+- Added direct open actions for exported `summary.txt`, `snapshot.json`, `manifest.json`, and `recent-requests.json` so support bundles can be inspected without manual file hunting.
+- Promoted support bundle `exportedAt` and `bundleName` into first-class runtime return fields so the renderer no longer has to infer export timing from action history.
+- Promoted the latest exported support bundle into `AppState` so the workbench can recover the last export result on refresh instead of keeping it only in renderer-local state.
+- Persisted the latest exported support bundle metadata into desktop app settings so support bundle cards can survive a full app restart instead of only a runtime refresh.
+- Extended support bundle persistence to keep a short most-recent-first history so users can switch between the latest few exports after refresh or restart.
+- Added a non-destructive "clear support bundle history" action so repeated smoke tests can reset exported-bundle state without removing local export files.
+- Persisted the currently selected support bundle history item so reopening the desktop app can return to the same historical snapshot instead of always falling back to the latest export.
+- Added single-item support-bundle history removal so operators can prune stale records without wiping the whole history or touching exported files on disk.
 
 Verification:
-- `npm test` passes with 46 tests.
+- `npm test` passes with 51 tests.
 - `npm run typecheck` succeeds.
 - `npm run desktop:build` succeeds.
 - Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.

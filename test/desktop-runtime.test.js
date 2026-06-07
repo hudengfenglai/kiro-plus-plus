@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -189,6 +189,8 @@ test("desktop runtime toggles byok and exports redacted diagnostics summary", as
   assert.match(summary, /Readiness issues: 1/);
   assert.match(summary, /Primary issue: 还没有做最小 Provider 验证 -> 测试 Provider/);
   assert.doesNotMatch(summary, /sk-test/);
+  assert.match(summary, /Kiro install path: <path:Kiro\.exe>/);
+  assert.doesNotMatch(summary, /E:\\Kiro\\Kiro\.exe/);
 
   await runtime.setByokEnabled(false);
   assert.equal(savedSettings.isByokEnabled, false);
@@ -250,10 +252,14 @@ test("desktop runtime launches kiro after ensuring proxy and routing", async () 
 
 test("desktop runtime exports diagnostics to a local file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-"));
+  let savedSettings = normalizeAppSettings();
   const runtime = new DesktopRuntime({
     settingsStore: {
-      load: async () => normalizeAppSettings(),
-      save: async (next) => normalizeAppSettings(next)
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
     },
     secretStore: {
       get: async () => "sk-test"
@@ -302,6 +308,8 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   });
 
   const result = await runtime.exportDiagnosticsToFile();
+  assert.equal(result.exportedAt, "2026-06-07T12:34:56.789Z");
+  assert.equal(result.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
   assert.match(result.bundleDir, /kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z$/);
   assert.match(result.readmePath, /README\.txt$/);
   assert.match(result.summaryPath, /summary\.txt$/);
@@ -321,7 +329,8 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.equal(payload.exportedAt, "2026-06-07T12:34:56.789Z");
   assert.match(payload.summary, /Kiro\+\+ diagnostics summary/);
   assert.equal(payload.proxyStatus.state, "stopped");
-  assert.equal(payload.kiroDetection.installPath, "E:\\Kiro\\Kiro.exe");
+  assert.equal(payload.kiroDetection.installPath, "<path:Kiro.exe>");
+  assert.equal(payload.kiroDetection.detectionHint, "已检测到 Kiro 安装：<path:Kiro.exe>");
   assert.equal(payload.recentLogs[0].requestId, "demo-export");
   const requestsText = await readFile(result.requestsPath, "utf8");
   const requests = JSON.parse(requestsText);
@@ -329,10 +338,295 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   const manifestText = await readFile(result.manifestPath, "utf8");
   const manifest = JSON.parse(manifestText);
   assert.equal(manifest.exportedAt, "2026-06-07T12:34:56.789Z");
-  assert.equal(manifest.files.readmePath, result.readmePath);
-  assert.equal(manifest.files.summaryPath, result.summaryPath);
-  assert.equal(manifest.files.jsonPath, result.jsonPath);
-  assert.equal(manifest.files.requestsPath, result.requestsPath);
+  assert.match(manifest.bundleName, /^kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z$/);
+  assert.equal(manifest.files.readme, "README.txt");
+  assert.equal(manifest.files.summary, "summary.txt");
+  assert.equal(manifest.files.snapshot, "snapshot.json");
+  assert.equal(manifest.files.requests, "recent-requests.json");
+  assert.doesNotMatch(manifestText, /[A-Z]:\\/);
+  const state = await runtime.getState();
+  assert.equal(state.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
+  assert.equal(state.lastExportBundle?.exportedAt, "2026-06-07T12:34:56.789Z");
+  assert.equal(state.lastExportBundle?.summaryPath, result.summaryPath);
+  const reloadedSettings = await runtime.settingsStore.load();
+  assert.equal(reloadedSettings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
+  assert.equal(reloadedSettings.runtime.lastExportBundle?.summaryPath, result.summaryPath);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("desktop runtime exports diagnostics to a zip support bundle", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-zip-"));
+  const zipCalls = [];
+  let savedSettings = normalizeAppSettings();
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    },
+    diagnosticsExportDir: dir,
+    zipBundle: async ({ bundleDir, zipPath }) => {
+      zipCalls.push({ bundleDir, zipPath });
+      await writeFile(zipPath, "zip", "utf8");
+    },
+    now: () => new Date("2026-06-08T08:00:00.000Z")
+  });
+
+  const result = await runtime.exportDiagnosticsZip();
+  assert.equal(zipCalls.length, 1);
+  assert.equal(result.exportedAt, "2026-06-08T08:00:00.000Z");
+  assert.equal(result.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T08-00-00-000Z");
+  assert.equal(zipCalls[0].bundleDir, result.bundleDir);
+  assert.equal(zipCalls[0].zipPath, result.zipPath);
+  assert.match(result.zipPath, /\.zip$/);
+  const zipText = await readFile(result.zipPath, "utf8");
+  assert.equal(zipText, "zip");
+  const manifestText = await readFile(result.manifestPath, "utf8");
+  assert.doesNotMatch(manifestText, /[A-Z]:\\/);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("desktop runtime keeps latest support bundles in descending history order", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-history-"));
+  let savedSettings = normalizeAppSettings();
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    },
+    diagnosticsExportDir: dir,
+    now: (() => {
+      const stamps = [
+        "2026-06-08T09:00:00.000Z",
+        "2026-06-08T09:05:00.000Z"
+      ];
+      let index = 0;
+      return () => new Date(stamps[index++]);
+    })()
+  });
+
+  await runtime.exportDiagnosticsToFile();
+  await runtime.exportDiagnosticsToFile();
+
+  const state = await runtime.getState();
+  assert.equal(state.exportHistory.length, 2);
+  assert.equal(state.exportHistory[0].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-05-00-000Z");
+  assert.equal(state.exportHistory[1].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.equal(state.lastExportBundle?.bundleName, state.exportHistory[0].bundleName);
+
+  const selected = await runtime.selectExportBundle("kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.equal(selected.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  const reloaded = await runtime.getState();
+  assert.equal(reloaded.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.equal(savedSettings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("desktop runtime clears persisted support bundle history without deleting files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-clear-"));
+  let savedSettings = normalizeAppSettings();
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    },
+    diagnosticsExportDir: dir,
+    now: (() => {
+      const stamps = [
+        "2026-06-08T10:00:00.000Z",
+        "2026-06-08T10:01:00.000Z"
+      ];
+      let index = 0;
+      return () => new Date(stamps[index++]);
+    })()
+  });
+
+  await runtime.exportDiagnosticsToFile();
+  await runtime.exportDiagnosticsToFile();
+
+  const cleared = await runtime.clearDiagnosticsHistory();
+  assert.equal(cleared.exportHistory.length, 0);
+  assert.equal(cleared.lastExportBundle, null);
+  assert.equal(savedSettings.runtime.exportHistory.length, 0);
+  assert.equal(savedSettings.runtime.lastExportBundle, null);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("desktop runtime deletes a single support bundle record and preserves remaining history", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-delete-"));
+  let savedSettings = normalizeAppSettings();
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    },
+    diagnosticsExportDir: dir,
+    now: (() => {
+      const stamps = [
+        "2026-06-08T11:00:00.000Z",
+        "2026-06-08T11:01:00.000Z"
+      ];
+      let index = 0;
+      return () => new Date(stamps[index++]);
+    })()
+  });
+
+  await runtime.exportDiagnosticsToFile();
+  await runtime.exportDiagnosticsToFile();
+  await runtime.selectExportBundle("kiro-plus-plus-diagnostics-2026-06-08T11-00-00-000Z");
+
+  const nextState = await runtime.deleteExportBundle("kiro-plus-plus-diagnostics-2026-06-08T11-00-00-000Z");
+  assert.equal(nextState.exportHistory.length, 1);
+  assert.equal(nextState.exportHistory[0].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T11-01-00-000Z");
+  assert.equal(nextState.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T11-01-00-000Z");
+  assert.equal(savedSettings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T11-01-00-000Z");
 
   await rm(dir, { recursive: true, force: true });
 });

@@ -6,6 +6,7 @@ import {
 } from "../../shared/provider-presets";
 import type {
   AppState,
+  DiagnosticsExportBundle,
   PlaygroundResult,
   ProviderModel,
   ProviderProfile,
@@ -42,6 +43,11 @@ const emptyState: AppState = {
     logging: {
       captureHeaders: true,
       captureBodies: false
+    },
+    runtime: {
+      exportHistory: [],
+      lastExportBundle: null,
+      selectedExportBundleName: null
     }
   },
   proxyStatus: {
@@ -67,7 +73,9 @@ const emptyState: AppState = {
   },
   readinessIssues: [],
   lastSuccessfulProviderTest: null,
-  lastAppliedKiroBackup: null
+  lastAppliedKiroBackup: null,
+  exportHistory: [],
+  lastExportBundle: null
 };
 
 const proxyStateLabels: Record<AppState["proxyStatus"]["state"], string> = {
@@ -174,6 +182,12 @@ function formatTime(value?: null | string) {
   });
 }
 
+function basename(value?: null | string) {
+  if (!value) return "暂无";
+  const parts = value.split(/[\\/]/).filter(Boolean);
+  return parts.at(-1) ?? value;
+}
+
 function summarizeLog(entry: RequestLogEntry | null) {
   if (!entry) {
     return {
@@ -275,6 +289,7 @@ export function App() {
   const [playgroundProviderId, setPlaygroundProviderId] = useState("");
   const [playgroundModelId, setPlaygroundModelId] = useState("");
   const [playgroundResult, setPlaygroundResult] = useState<null | PlaygroundState>(null);
+  const [lastExportBundle, setLastExportBundle] = useState<DiagnosticsExportBundle | null>(null);
 
   const providerOptions = useMemo(() => Object.values(PROVIDER_PRESETS), []);
 
@@ -305,6 +320,31 @@ export function App() {
     [actionEntries]
   );
 
+  const exportSummary = useMemo(() => {
+    if (!lastExportBundle) return null;
+    return {
+      bundleName: lastExportBundle.bundleName || basename(lastExportBundle.bundleDir),
+      zipName: basename(lastExportBundle.zipPath ?? null),
+      readmeName: basename(lastExportBundle.readmePath),
+      summaryName: basename(lastExportBundle.summaryPath),
+      snapshotName: basename(lastExportBundle.jsonPath),
+      manifestName: basename(lastExportBundle.manifestPath),
+      requestsName: basename(lastExportBundle.requestsPath),
+      exportedAt: lastExportBundle.exportedAt ?? null
+    };
+  }, [lastExportBundle]);
+
+  const exportHistory = useMemo(
+    () => state.exportHistory ?? [],
+    [state.exportHistory]
+  );
+
+  const viewingHistoricalBundle = Boolean(
+    lastExportBundle
+    && state.lastExportBundle
+    && lastExportBundle.bundleName !== state.lastExportBundle.bundleName
+  );
+
   const selectedProviderModels = useMemo(
     () => parseModelsText(modelsText, selectedProvider?.models ?? []),
     [modelsText, selectedProvider]
@@ -324,9 +364,15 @@ export function App() {
       api.exportDiagnostics()
     ]);
 
+    const preservedBundle = lastExportBundle
+      ? nextState.exportHistory.find((bundle) => bundle.bundleName === lastExportBundle.bundleName)
+      : null;
+    const nextSelectedBundle = preservedBundle ?? nextState.lastExportBundle ?? null;
+
     setState(nextState);
     setLogRows(nextState.recentLogs);
-    setDiagnosticsSummary(summary);
+    setDiagnosticsSummary(nextSelectedBundle?.text || summary);
+    setLastExportBundle(nextSelectedBundle);
 
     const current = nextState.settings.providers.find((provider) => provider.id === nextState.settings.selectedProviderId)
       ?? nextState.settings.providers[0]
@@ -576,7 +622,7 @@ export function App() {
   async function copyDiagnosticsSummary() {
     await runAction(
       async () => {
-        const text = await requireDesktopApi().exportDiagnostics();
+        const text = diagnosticsSummary || await requireDesktopApi().exportDiagnostics();
         await navigator.clipboard.writeText(text);
         setDiagnosticsSummary(text);
         return text;
@@ -598,15 +644,8 @@ export function App() {
         afterFocus: "logs"
       }
     );
-    const typed = result as {
-      bundleDir?: string;
-      readmePath?: string;
-      summaryPath?: string;
-      jsonPath?: string;
-      requestsPath?: string;
-      manifestPath?: string;
-      text?: string;
-    };
+    const typed = result as DiagnosticsExportBundle;
+    setLastExportBundle(typed);
     if (typed.text) {
       setDiagnosticsSummary(typed.text);
     }
@@ -624,9 +663,35 @@ export function App() {
     }
   }
 
+  async function exportDiagnosticsZip() {
+    const result = await runAction(
+      () => requireDesktopApi().exportDiagnosticsZip(),
+      {
+        pending: "正在导出 zip 支持包...",
+        success: "zip 支持包已导出。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as DiagnosticsExportBundle;
+    setLastExportBundle(typed);
+    if (typed.text) {
+      setDiagnosticsSummary(typed.text);
+    }
+    setStatusDetail(
+      [
+        `导出目录：${typed.bundleDir}`,
+        typed.zipPath ? `压缩包：${typed.zipPath}` : null,
+        `说明：${typed.readmePath}`,
+        `摘要：${typed.summaryPath}`,
+        `快照：${typed.jsonPath}`,
+        `请求：${typed.requestsPath}`,
+        `清单：${typed.manifestPath}`
+      ].filter(Boolean).join("\n")
+    );
+  }
+
   async function openExportBundleDir() {
-    const detail = statusDetail.split(/\r?\n/).find((line) => line.startsWith("导出目录："));
-    const bundleDir = detail?.replace(/^导出目录：/, "").trim();
+    const bundleDir = lastExportBundle?.bundleDir;
     if (!bundleDir) {
       setStatus("还没有可打开的导出目录。");
       return;
@@ -639,6 +704,84 @@ export function App() {
         afterFocus: "logs"
       }
     );
+  }
+
+  async function openExportZip() {
+    const zipPath = lastExportBundle?.zipPath;
+    if (!zipPath) {
+      setStatus("还没有可打开的 zip 支持包。");
+      return;
+    }
+    await runAction(
+      () => requireDesktopApi().openPath(zipPath),
+      {
+        pending: "正在打开 zip 支持包...",
+        success: "zip 支持包已打开。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function openExportArtifact(target: null | string, label: string) {
+    if (!target) {
+      setStatus(`还没有可打开的${label}。`);
+      return;
+    }
+    await runAction(
+      () => requireDesktopApi().openPath(target),
+      {
+        pending: `正在打开${label}...`,
+        success: `${label}已打开。`,
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  function selectExportBundle(bundle: DiagnosticsExportBundle) {
+    runAction(
+      () => requireDesktopApi().selectDiagnosticsBundle(bundle.bundleName),
+      {
+        pending: `正在切换支持包：${bundle.bundleName}...`,
+        success: `已切换到支持包：${bundle.bundleName}`,
+        afterFocus: "logs"
+      }
+    ).then((result) => {
+      const typed = result as AppState;
+      setState(typed);
+      setLastExportBundle(typed.lastExportBundle ?? null);
+      setDiagnosticsSummary(typed.lastExportBundle?.text || diagnosticsSummary);
+    }).catch(() => {
+      // runAction already updates status/output
+    });
+  }
+
+  async function clearExportHistory() {
+    const result = await runAction(
+      () => requireDesktopApi().clearDiagnosticsHistory(),
+      {
+        pending: "正在清空支持包历史...",
+        success: "支持包历史已清空。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as AppState;
+    setLastExportBundle(typed.lastExportBundle ?? null);
+    setState(typed);
+  }
+
+  async function deleteExportBundle(bundle: DiagnosticsExportBundle) {
+    const result = await runAction(
+      () => requireDesktopApi().deleteDiagnosticsBundle(bundle.bundleName),
+      {
+        pending: `正在移除支持包记录：${bundle.bundleName}...`,
+        success: `已移除支持包记录：${bundle.bundleName}`,
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as AppState;
+    setState(typed);
+    setLastExportBundle(typed.lastExportBundle ?? null);
+    setDiagnosticsSummary(typed.lastExportBundle?.text || await requireDesktopApi().exportDiagnostics());
   }
 
   async function openResource(resourceId: ResourceKey) {
@@ -1222,7 +1365,10 @@ export function App() {
                 <div className="summary-actions">
                   <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制脱敏摘要</button>
                   <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
+                  <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>
                   <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
+                  <button className="ghost-button" onClick={openExportZip}>打开 zip 支持包</button>
+                  <button className="ghost-button" onClick={clearExportHistory}>清空支持包历史</button>
                   <button
                     className="ghost-button"
                     onClick={() =>
@@ -1236,6 +1382,62 @@ export function App() {
                     刷新诊断
                   </button>
                 </div>
+                {exportSummary ? (
+                  <section className="export-card">
+                    <div className="export-card-head">
+                      <div>
+                        <span className="snapshot-label">Support Bundle</span>
+                        <strong>最近一次支持包</strong>
+                      </div>
+                      <small>{formatTime(exportSummary.exportedAt)}</small>
+                    </div>
+                    <dl className="kv-grid compact">
+                      <div><dt>目录</dt><dd>{exportSummary.bundleName}</dd></div>
+                      <div><dt>zip</dt><dd>{lastExportBundle?.zipPath ? exportSummary.zipName : "未导出"}</dd></div>
+                      <div><dt>说明</dt><dd>{exportSummary.readmeName}</dd></div>
+                      <div><dt>摘要</dt><dd>{exportSummary.summaryName}</dd></div>
+                      <div><dt>快照</dt><dd>{exportSummary.snapshotName}</dd></div>
+                      <div><dt>请求</dt><dd>{exportSummary.requestsName}</dd></div>
+                      <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
+                    </dl>
+                    <div className="export-actions">
+                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
+                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.summaryPath ?? null, "摘要文件")}>打开摘要</button>
+                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.jsonPath ?? null, "快照文件")}>打开快照</button>
+                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.manifestPath ?? null, "清单文件")}>打开清单</button>
+                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}>打开请求</button>
+                    </div>
+                    {viewingHistoricalBundle ? (
+                      <p className="export-hint">当前正在查看历史支持包快照；复制摘要时会复制这条历史摘要，不是实时诊断。</p>
+                    ) : null}
+                    {exportHistory.length > 1 ? (
+                      <div className="export-history">
+                        <div className="export-history-head">
+                          <strong>最近支持包历史</strong>
+                          <small>保留最近 {exportHistory.length} 次</small>
+                        </div>
+                        <div className="export-history-list">
+                          {exportHistory.map((bundle) => (
+                            <div
+                              key={bundle.bundleName}
+                              className={bundle.bundleName === lastExportBundle?.bundleName ? "history-row active" : "history-row"}
+                            >
+                              <button
+                                className={bundle.bundleName === lastExportBundle?.bundleName ? "history-chip active" : "history-chip"}
+                                onClick={() => selectExportBundle(bundle)}
+                              >
+                                <span>{bundle.bundleName}</span>
+                                <small>{formatTime(bundle.exportedAt)}</small>
+                              </button>
+                              <button className="ghost-button history-delete" onClick={() => deleteExportBundle(bundle)}>移除</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    <p className="export-hint">导出内容已默认脱敏，适合发到 GitHub Issue、LinuxDO 或群内排错。</p>
+                  </section>
+                ) : null}
                 <pre className="summary-block">{diagnosticsSummary || "诊断摘要将在这里显示。"}</pre>
               </div>
             )}
@@ -1315,10 +1517,61 @@ export function App() {
             <div className="button-stack">
               <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制诊断摘要</button>
               <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
+              <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>
               <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
+              <button className="ghost-button" onClick={openExportZip}>打开 zip 支持包</button>
+              <button className="ghost-button" onClick={clearExportHistory}>清空支持包历史</button>
               <button className="ghost-button" onClick={() => openResource("providers")}>打开 Provider 文档</button>
               <button className="ghost-button" onClick={() => openResource("streaming")}>打开 Streaming 文档</button>
             </div>
+
+            {exportSummary ? (
+              <section className="export-card compact-export-card">
+                <div className="export-card-head">
+                  <div>
+                    <span className="snapshot-label">Latest Bundle</span>
+                    <strong>{exportSummary.bundleName}</strong>
+                  </div>
+                  <small>{formatTime(exportSummary.exportedAt)}</small>
+                </div>
+                <dl className="kv-grid compact">
+                  <div><dt>zip</dt><dd>{lastExportBundle?.zipPath ? exportSummary.zipName : "未导出"}</dd></div>
+                  <div><dt>说明</dt><dd>{exportSummary.readmeName}</dd></div>
+                  <div><dt>摘要</dt><dd>{exportSummary.summaryName}</dd></div>
+                  <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
+                </dl>
+                <div className="export-actions compact-export-actions">
+                  <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
+                  <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.summaryPath ?? null, "摘要文件")}>打开摘要</button>
+                  <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.manifestPath ?? null, "清单文件")}>打开清单</button>
+                </div>
+                {exportHistory.length > 1 ? (
+                  <div className="export-history compact-export-history">
+                    <div className="export-history-head">
+                      <strong>最近历史</strong>
+                    </div>
+                    <div className="export-history-list">
+                      {exportHistory.slice(0, 3).map((bundle) => (
+                        <div
+                          key={bundle.bundleName}
+                          className={bundle.bundleName === lastExportBundle?.bundleName ? "history-row active" : "history-row"}
+                        >
+                          <button
+                            className={bundle.bundleName === lastExportBundle?.bundleName ? "history-chip active" : "history-chip"}
+                            onClick={() => selectExportBundle(bundle)}
+                          >
+                            <span>{bundle.bundleName}</span>
+                            <small>{formatTime(bundle.exportedAt)}</small>
+                          </button>
+                          <button className="ghost-button history-delete" onClick={() => deleteExportBundle(bundle)}>移除</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                <p className="export-hint">这里显示最近一次可分享支持包，优先发 zip 即可。</p>
+              </section>
+            ) : null}
 
             {statusDetail ? <pre className="status-detail">{statusDetail}</pre> : null}
           </section>
