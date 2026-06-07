@@ -86,7 +86,7 @@
                 <p>本地 BYOK 路由与 Kiro 可视化接入台</p>
               </div>
             </div>
-            <button class="ghost-button" data-open-console="dashboard">打开控制台</button>
+            <button class="ghost-button" data-open-console="status">打开控制台</button>
           </header>
 
           <main class="landing-content">
@@ -100,7 +100,7 @@
                 </p>
                 <div class="hero-actions">
                   <button data-open-console="providers">快速开始</button>
-                  <button class="ghost-button" data-open-console="dashboard">进入控制台</button>
+                  <button class="ghost-button" data-open-console="status">进入控制台</button>
                   <button class="ghost-button" data-scroll-target="providers">查看配置示例</button>
                   <button class="ghost-button" data-scroll-target="troubleshooting">常见问题</button>
                 </div>
@@ -151,7 +151,7 @@
                   <span class="step-index">02</span>
                   <h4>启动本地代理</h4>
                   <p>启动本地 endpoint，让 Kiro 的 CodeWhisperer / Q Developer 请求先进入 kiro++。</p>
-                  <button class="ghost-button" data-open-console="dashboard">去启动</button>
+                  <button class="ghost-button" data-open-console="status">去启动</button>
                 </article>
                 <article class="info-card step-card">
                   <span class="step-index">03</span>
@@ -220,7 +220,7 @@
                   <article class="info-card slim-card">
                     <h4>桌面控制台方式</h4>
                     <p>适合第一次接入、切换模型、看诊断和日志。</p>
-                    <button class="ghost-button" data-open-console="dashboard">打开控制台</button>
+                    <button class="ghost-button" data-open-console="status">打开控制台</button>
                   </article>
                   <article class="info-card slim-card">
                     <h4>CLI 方式</h4>
@@ -274,7 +274,7 @@
     <script>
       for (const button of document.querySelectorAll("[data-open-console]")) {
         button.addEventListener("click", () => {
-          const tab = button.getAttribute("data-open-console") || "dashboard";
+          const tab = button.getAttribute("data-open-console") || "status";
           window.location.href = `./preview-console.html?tab=${encodeURIComponent(tab)}`;
         });
       }

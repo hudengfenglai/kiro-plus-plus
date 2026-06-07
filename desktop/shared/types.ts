@@ -63,7 +63,7 @@ export interface BootstrapStep {
 }
 
 export interface BootstrapState {
-  recommendedTab: "dashboard" | "providers" | "kiro" | "logs" | "playground";
+  recommendedTab: "status" | "providers" | "kiro" | "logs" | "playground";
   steps: BootstrapStep[];
 }
 

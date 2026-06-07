@@ -57,7 +57,7 @@ function deriveBootstrapState({ settings, kiroDetection, proxyStatus, diagnose }
     : !testDone
       ? "providers"
       : !proxyDone
-        ? "dashboard"
+        ? "status"
         : !byokDone
           ? "kiro"
           : "playground";

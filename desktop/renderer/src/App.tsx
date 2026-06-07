@@ -240,6 +240,7 @@ function deriveFocusMeta(focus: ConsoleFocus) {
 
 function pickRecommendedFocus(state: AppState): ConsoleFocus {
   const recommendation = state.bootstrap.recommendedTab;
+  if (recommendation === "status") return "status";
   if (recommendation === "providers") return "providers";
   if (recommendation === "kiro") return "kiro";
   if (recommendation === "logs") return "logs";
@@ -413,8 +414,7 @@ export function App() {
 
   async function refreshLogs(nextFilters = logFilters) {
     try {
-      const api = requireDesktopApi();
-      const rows = await api.listLogs({
+      const rows = await requireDesktopApi().listLogs({
         operation: nextFilters.operation || undefined,
         status: nextFilters.status ? Number(nextFilters.status) : undefined,
         errorOnly: nextFilters.errorOnly
@@ -443,7 +443,6 @@ export function App() {
 
   async function handleSaveProvider() {
     if (!selectedProvider) return;
-    const api = requireDesktopApi();
     const normalizedModels = selectedProviderModels;
     const normalizedDefaultModel = normalizedModels.find((model) => model.id === selectedProvider.defaultModel)?.id
       ?? normalizedModels[0]?.id
@@ -451,7 +450,7 @@ export function App() {
 
     await runAction(
       () =>
-        api.saveProvider({
+        requireDesktopApi().saveProvider({
           profile: {
             ...selectedProvider,
             models: normalizedModels,
@@ -470,9 +469,8 @@ export function App() {
 
   async function handleFetchModels() {
     if (!selectedProvider) return;
-    const api = requireDesktopApi();
     const result = await runAction(
-      () => api.fetchModels({ profile: selectedProvider, apiKey: apiKey.trim() || undefined }),
+      () => requireDesktopApi().fetchModels({ profile: selectedProvider, apiKey: apiKey.trim() || undefined }),
       {
         pending: "正在拉取远程模型列表...",
         success: "模型列表已刷新。",
@@ -502,10 +500,9 @@ export function App() {
 
   async function handleTestProvider() {
     if (!selectedProvider) return;
-    const api = requireDesktopApi();
     const result = await runAction(
       () =>
-        api.testProvider({
+        requireDesktopApi().testProvider({
           profile: selectedProvider,
           apiKey: apiKey.trim() || undefined,
           modelId: selectedProvider.defaultModel,
@@ -526,10 +523,9 @@ export function App() {
 
   async function handlePlaygroundSend() {
     if (!providerForPlayground || !playgroundModelId.trim()) return;
-    const api = requireDesktopApi();
     const result = await runAction(
       () =>
-        api.sendPlayground({
+        requireDesktopApi().sendPlayground({
           providerId: providerForPlayground.id,
           modelId: playgroundModelId.trim(),
           prompt: playgroundPrompt

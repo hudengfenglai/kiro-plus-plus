@@ -47,7 +47,7 @@
           </div>
         </div>
         <nav class="nav">
-          <button class="nav-button" data-tab="dashboard"><span>当前状态</span><small>代理、Provider、Kiro 路由和最近请求概览</small></button>
+          <button class="nav-button" data-tab="status"><span>当前状态</span><small>代理、Provider、Kiro 路由和最近请求概览</small></button>
           <button class="nav-button" data-tab="providers"><span>Provider 与模型</span><small>保存 API、导入模型列表并做连通性测试</small></button>
           <button class="nav-button" data-tab="kiro"><span>Kiro 接入</span><small>应用配置、运行诊断、恢复备份</small></button>
           <button class="nav-button" data-tab="logs"><span>日志与诊断</span><small>查看最近请求、状态码和失败线索</small></button>
@@ -95,7 +95,7 @@
           <article class="readiness-card"><span class="readiness-index">04</span><h4>可以开始测试</h4><p id="ready-playground">先完成前面三步</p></article>
         </section>
 
-        <section id="panel-dashboard" class="tab-panel">
+        <section id="panel-status" class="tab-panel">
           <div class="grid two">
             <section class="panel">
               <div class="panel-head">
@@ -105,8 +105,8 @@
                 </div>
               </div>
               <dl class="facts">
-                <div><dt>代理状态</dt><dd id="dashboard-proxy-state">未启动</dd></div>
-                <div><dt>本地 Endpoint</dt><dd id="dashboard-endpoint">未启动</dd></div>
+                <div><dt>代理状态</dt><dd id="status-proxy-state">未启动</dd></div>
+                <div><dt>本地 Endpoint</dt><dd id="status-endpoint">未启动</dd></div>
                 <div><dt>当前 Provider</dt><dd>DeepSeek</dd></div>
                 <div><dt>默认模型</dt><dd>deepseek-v4-pro</dd></div>
               </dl>
@@ -289,7 +289,7 @@ deepseek-v4-flash</textarea>
     </div>
 
     <script>
-      const tabs = ["dashboard", "providers", "kiro", "logs", "playground"];
+      const tabs = ["status", "providers", "kiro", "logs", "playground"];
       const toast = document.getElementById("preview-toast");
 
       function showToast(message) {
@@ -314,8 +314,8 @@ deepseek-v4-flash</textarea>
         document.getElementById("proxy-pill").textContent = "运行中";
         document.getElementById("proxy-endpoint").textContent = "http://127.0.0.1:43119";
         document.getElementById("proxy-status-text").textContent = "已模拟启动本地代理。";
-        document.getElementById("dashboard-proxy-state").textContent = "运行中";
-        document.getElementById("dashboard-endpoint").textContent = "http://127.0.0.1:43119";
+        document.getElementById("status-proxy-state").textContent = "运行中";
+        document.getElementById("status-endpoint").textContent = "http://127.0.0.1:43119";
         document.getElementById("ready-proxy").textContent = "http://127.0.0.1:43119";
         document.getElementById("ready-playground").textContent = "现在可以继续应用到 Kiro。";
         showToast("已模拟启动代理。这里不会真的监听端口，只更新页面状态。");
@@ -379,7 +379,7 @@ deepseek-v4-flash</textarea>
 
       const params = new URLSearchParams(window.location.search);
       const initialTab = params.get("tab");
-      setActiveTab(tabs.includes(initialTab) ? initialTab : "dashboard");
+      setActiveTab(tabs.includes(initialTab) ? initialTab : "status");
 
       document.querySelector("[data-go-home]").addEventListener("click", () => {
         window.location.href = "./preview.html";
