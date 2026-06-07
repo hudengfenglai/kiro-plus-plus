@@ -2,7 +2,7 @@
 
 Windows-first local BYOK router and desktop control console for Kiro.
 
-`kiro++` lets Kiro use your own provider keys and models without modifying the installed Kiro application directory. It runs a local endpoint, writes reversible user settings, and exposes a desktop console for provider management, diagnostics, and restore.
+`kiro++` lets Kiro use your own provider keys and models without modifying the installed Kiro application directory. It runs a local endpoint, writes reversible user settings, and exposes a desktop console for provider management, diagnostics, restore, and startup preheat.
 
 ## What It Does
 
@@ -15,9 +15,12 @@ Windows-first local BYOK router and desktop control console for Kiro.
   - SiliconFlow
 - Provides a Windows desktop console for:
   - provider setup and testing
+  - model list sync and default model selection
   - BYOK on/off switching
   - Kiro detect / apply / diagnose / restore
+  - startup auto-apply preheat
   - request logs and diagnostics export
+  - support bundle export for issue reporting
   - single-request model validation
 - Generates a Windows NSIS installer package.
 
@@ -57,16 +60,74 @@ npm run desktop:package
 
 The installer is written to `release/`.
 
-## Fastest Path
+## Windows Desktop Flow
 
-Recommended desktop flow:
+After installation, you get two entry points:
 
-1. Open the desktop console
+- `Kiro++ Console`
+- `Launch Kiro with Kiro++`
+
+Recommended first-run flow:
+
+1. Open `Kiro++ Console`
 2. Select a provider preset
 3. Fill your API key
 4. Fetch or confirm models
 5. Test provider
-6. Enable BYOK routing
+6. Apply to Kiro or enable BYOK
+7. Run Diagnose
+8. Optionally enable `启动时自动应用`
+9. Use `Launch Kiro with Kiro++` or the top-right launch button
+
+## Startup Auto-Apply
+
+The desktop console can enable `启动时自动应用`.
+
+When enabled, opening the desktop app will try to:
+
+1. detect Kiro
+2. start the local proxy
+3. re-apply BYOK routing when needed
+
+This is intended to reduce repeated manual setup before opening Kiro.
+
+The workbench now shows two different state cards:
+
+- `Launch Kiro with Kiro++`: the last manual Kiro launch attempt
+- `启动预热状态`: the last startup auto-apply attempt
+
+If startup auto-apply fails, the app should still open and show the failure state instead of silently doing nothing.
+
+## Support Bundles
+
+The desktop workbench can export a local diagnostics bundle.
+
+Available actions include:
+
+- export plain diagnostics files
+- export a zip support bundle
+- open the export directory
+- open the generated `README.txt`, `summary.txt`, `snapshot.json`, and `recent-requests.json`
+
+Exported data is redacted by default for:
+
+- authorization headers
+- cookies
+- AWS-style temporary security headers
+- local filesystem paths inside the exported summary/snapshot metadata
+
+This is the preferred artifact for GitHub Issues, LinuxDO troubleshooting, and private support chats.
+
+## Fastest DeepSeek Path
+
+Desktop path:
+
+1. Open `Kiro++ Console`
+2. Choose `DeepSeek`
+3. Fill your key
+4. Confirm `deepseek-v4-pro` or `deepseek-v4-flash`
+5. Test provider
+6. Apply to Kiro
 7. Launch Kiro with Kiro++
 
 CLI remains available:
@@ -79,7 +140,7 @@ node .\src\cli\main.js start
 node .\src\cli\main.js restore
 ```
 
-## DeepSeek Example
+CLI example:
 
 ```powershell
 $env:KIRO_PLUS_PROVIDER = "openai-compatible"
@@ -91,11 +152,32 @@ node .\src\cli\main.js start
 
 More provider examples: [docs/domestic-providers.md](docs/domestic-providers.md)
 
+## Troubleshooting
+
+If Kiro still does not use the local route:
+
+1. Run `Diagnose` in the desktop app
+2. Check `localRegions`
+3. Check `unsupportedOperationsSeen`
+4. Check the recent request log list
+5. Export a support bundle and inspect `summary.txt`
+
+Common causes:
+
+- Provider key was never saved
+- `defaultModel` is not in `models[]`
+- Kiro was not fully restarted after route changes
+- Kiro profile-level settings are still forcing `auto`
+- The local proxy was not running when Kiro made the request
+
+If the desktop app opens but the docs buttons fail in packaged builds, upgrade to a build that includes packaged `docs` path fallback support.
+
 ## Verification Status
 
 Current verified items:
 
 - `npm test`
+- `npm run typecheck`
 - `npm run desktop:build`
 - `npm run desktop:package`
 - Kiro settings routing diagnosis returns local endpoint coverage for all configured regions

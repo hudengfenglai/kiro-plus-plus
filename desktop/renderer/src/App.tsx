@@ -7,6 +7,7 @@ import {
 import type {
   AppState,
   DiagnosticsExportBundle,
+  LaunchAttempt,
   PlaygroundResult,
   ProviderModel,
   ProviderProfile,
@@ -14,7 +15,7 @@ import type {
 } from "../../shared/types";
 
 type ViewKey = "home" | "console";
-type ResourceKey = "readme" | "providers" | "streaming" | "plan";
+type ResourceKey = "quickstart" | "readme" | "providers" | "streaming" | "plan";
 type ConsoleFocus = "status" | "providers" | "kiro" | "logs" | "playground";
 type WorkbenchTab = "logs" | "output" | "diagnostics";
 type ThemeKey = "dark" | "light";
@@ -47,6 +48,8 @@ const emptyState: AppState = {
     runtime: {
       exportHistory: [],
       lastExportBundle: null,
+      lastLaunchAttempt: null,
+      lastBootstrapAttempt: null,
       selectedExportBundleName: null
     }
   },
@@ -75,7 +78,9 @@ const emptyState: AppState = {
   lastSuccessfulProviderTest: null,
   lastAppliedKiroBackup: null,
   exportHistory: [],
-  lastExportBundle: null
+  lastExportBundle: null,
+  lastLaunchAttempt: null,
+  lastBootstrapAttempt: null
 };
 
 const proxyStateLabels: Record<AppState["proxyStatus"]["state"], string> = {
@@ -112,7 +117,19 @@ const quickStartSteps = [
   }
 ];
 
+const embeddedQuickstart = [
+  "1. 选 Provider 预设并保存 Key",
+  "2. 拉取或确认 models[]",
+  "3. 测试 Provider",
+  "4. 应用到 Kiro 并运行诊断"
+];
+
 const resourceLinks: Array<{ key: ResourceKey; title: string; body: string }> = [
+  {
+    key: "quickstart",
+    title: "Quickstart",
+    body: "安装版的最短上手路径、启动预热和支持包说明。"
+  },
   {
     key: "readme",
     title: "README",
@@ -186,6 +203,94 @@ function basename(value?: null | string) {
   if (!value) return "暂无";
   const parts = value.split(/[\\/]/).filter(Boolean);
   return parts.at(-1) ?? value;
+}
+
+function describeLaunchStep(step?: null | string) {
+  switch (step) {
+    case "detect-kiro":
+      return "检测 Kiro";
+    case "start-proxy":
+      return "启动代理";
+    case "apply-routing":
+      return "应用路由";
+    case "launch-kiro":
+      return "拉起 Kiro";
+    default:
+      return step ?? "暂无";
+  }
+}
+
+function describeLaunchStatus(attempt: LaunchAttempt | null) {
+  if (!attempt) {
+    return {
+      title: "尚未通过 Kiro++ 启动 Kiro",
+      tone: "info" as const
+    };
+  }
+  if (attempt.status === "success") {
+    return {
+      title: "最近一次启动成功",
+      tone: "success" as const
+    };
+  }
+  if (attempt.status === "error") {
+    return {
+      title: "最近一次启动失败",
+      tone: "error" as const
+    };
+  }
+  return {
+    title: "最近一次启动进行中",
+    tone: "info" as const
+  };
+}
+
+function describeBootstrapStep(step?: null | string) {
+  switch (step) {
+    case "bootstrap-disabled":
+      return "未启用预热";
+    case "bootstrap-start":
+      return "开始预热";
+    case "apply-routing":
+      return "应用路由";
+    case "bootstrap-ready":
+      return "已就绪";
+    case "bootstrap-failed":
+      return "预热失败";
+    default:
+      return step ?? "暂无";
+  }
+}
+
+function describeBootstrapStatus(attempt: LaunchAttempt | null) {
+  if (!attempt) {
+    return {
+      title: "暂无启动预热记录",
+      tone: "info" as const
+    };
+  }
+  if (attempt.status === "success") {
+    return {
+      title: "最近一次启动预热成功",
+      tone: "success" as const
+    };
+  }
+  if (attempt.status === "error") {
+    return {
+      title: "最近一次启动预热失败",
+      tone: "error" as const
+    };
+  }
+  if (attempt.status === "skipped") {
+    return {
+      title: "最近一次启动预热已跳过",
+      tone: "info" as const
+    };
+  }
+  return {
+    title: "最近一次启动预热进行中",
+    tone: "info" as const
+  };
 }
 
 function summarizeLog(entry: RequestLogEntry | null) {
@@ -290,6 +395,7 @@ export function App() {
   const [playgroundModelId, setPlaygroundModelId] = useState("");
   const [playgroundResult, setPlaygroundResult] = useState<null | PlaygroundState>(null);
   const [lastExportBundle, setLastExportBundle] = useState<DiagnosticsExportBundle | null>(null);
+  const [hasBootstrapped, setHasBootstrapped] = useState(false);
 
   const providerOptions = useMemo(() => Object.values(PROVIDER_PRESETS), []);
 
@@ -313,6 +419,14 @@ export function App() {
   const latestSuccess = useMemo(
     () => [...logRows].find((entry) => entry.status >= 200 && entry.status < 400) ?? null,
     [logRows]
+  );
+  const launchStatus = useMemo(
+    () => describeLaunchStatus(state.lastLaunchAttempt),
+    [state.lastLaunchAttempt]
+  );
+  const bootstrapStatus = useMemo(
+    () => describeBootstrapStatus(state.lastBootstrapAttempt),
+    [state.lastBootstrapAttempt]
   );
 
   const outputEntries = useMemo(
@@ -360,7 +474,7 @@ export function App() {
   async function refresh(nextFocus?: ConsoleFocus) {
     const api = requireDesktopApi();
     const [nextState, summary] = await Promise.all([
-      api.getState(),
+      hasBootstrapped ? api.getState() : api.bootstrap(),
       api.exportDiagnostics()
     ]);
 
@@ -390,6 +504,9 @@ export function App() {
       const meta = deriveFocusMeta(nextFocus);
       setFocus(nextFocus);
       setWorkbenchTab(meta.workbench);
+    }
+    if (!hasBootstrapped) {
+      setHasBootstrapped(true);
     }
   }
 
@@ -798,6 +915,19 @@ export function App() {
     setTheme((current) => (current === "dark" ? "light" : "dark"));
   }
 
+  async function handleToggleAutoApplyOnLaunch() {
+    const nextEnabled = !state.settings.kiro.autoApplyOnLaunch;
+    const result = await runAction(
+      () => requireDesktopApi().setAutoApplyOnLaunch(nextEnabled),
+      {
+        pending: nextEnabled ? "正在启用启动时自动应用..." : "正在关闭启动时自动应用...",
+        success: nextEnabled ? "启动时自动应用已启用。" : "启动时自动应用已关闭。",
+        afterFocus: "kiro"
+      }
+    );
+    setState(result as AppState);
+  }
+
   const home = (
     <div className="landing-shell">
       <header className="landing-header">
@@ -828,12 +958,14 @@ export function App() {
             </p>
             <div className="hero-actions">
               <button onClick={() => openConsole(pickRecommendedFocus(state))}>快速开始</button>
+              <button className="ghost-button" onClick={() => openResource("quickstart")}>打开 Quickstart</button>
               <button className="ghost-button" onClick={() => openConsole("providers")}>查看 Provider 配置</button>
               <button className="ghost-button" onClick={() => openConsole("logs")}>查看排错入口</button>
             </div>
           </div>
 
           <div className="hero-side">
+            <div className="hero-side-stack">
             <div className="hero-side-card">
               <span className={`state-pill ${state.proxyStatus.state}`}>{proxyStateLabels[state.proxyStatus.state]}</span>
               <h3>当前接入状态</h3>
@@ -843,6 +975,20 @@ export function App() {
                 <div><dt>默认模型</dt><dd>{selectedProvider?.defaultModel ?? "未配置"}</dd></div>
                 <div><dt>Endpoint</dt><dd>{state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
               </dl>
+            </div>
+            <div className="hero-side-card quickstart-card">
+              <span className="panel-tag">Quickstart</span>
+              <h3>最短上手</h3>
+              <ol className="quickstart-list">
+                {embeddedQuickstart.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ol>
+              <div className="button-stack">
+                <button className="ghost-button" onClick={() => openResource("quickstart")}>打开完整指南</button>
+                <button className="ghost-button" onClick={() => openConsole("providers")}>去配置 Provider</button>
+              </div>
+            </div>
             </div>
           </div>
         </section>
@@ -1079,9 +1225,16 @@ export function App() {
               <div><dt>Kiro 安装</dt><dd>{state.kiroDetection.installPath ?? "未检测到"}</dd></div>
               <div><dt>探测提示</dt><dd>{state.kiroDetection.detectionHint}</dd></div>
               <div><dt>最近备份</dt><dd>{state.kiroDetection.lastBackup?.backupPath ?? "暂无"}</dd></div>
+              <div><dt>开机预热</dt><dd>{state.settings.kiro.autoApplyOnLaunch ? "已启用" : "未启用"}</dd></div>
             </dl>
 
             <div className="button-stack">
+              <button
+                className="ghost-button"
+                onClick={handleToggleAutoApplyOnLaunch}
+              >
+                {state.settings.kiro.autoApplyOnLaunch ? "关闭启动时自动应用" : "启用启动时自动应用"}
+              </button>
               <button
                 className="ghost-button"
                 onClick={() =>
@@ -1226,6 +1379,21 @@ export function App() {
             ))}
           </section>
 
+          <section className="workspace-card quickstart-inline-card">
+            <div className="card-head">
+              <div>
+                <span className="panel-tag">Quickstart</span>
+                <h3>首次接入建议顺序</h3>
+              </div>
+              <button className="ghost-button compact-button" onClick={() => openResource("quickstart")}>打开完整指南</button>
+            </div>
+            <div className="quickstart-inline-grid">
+              {embeddedQuickstart.map((item) => (
+                <div key={item} className="quickstart-inline-item">{item}</div>
+              ))}
+            </div>
+          </section>
+
           <section className="workspace-grid">
             <article className="workspace-card">
               <div className="card-head">
@@ -1263,6 +1431,46 @@ export function App() {
                 <pre className="summary-block compact">
                   {state.kiroDetection.searchedInstallPaths.join("\n")}
                 </pre>
+              ) : null}
+            </article>
+
+            <article className={`workspace-card launch-card ${launchStatus.tone}`}>
+              <div className="card-head">
+                <div>
+                  <span className="panel-tag">Launch</span>
+                  <h3>Launch Kiro with Kiro++</h3>
+                </div>
+                <span className="tiny-meta">{formatTime(state.lastLaunchAttempt?.finishedAt ?? state.lastLaunchAttempt?.startedAt ?? null)}</span>
+              </div>
+              <dl className="kv-grid">
+                <div><dt>结果</dt><dd>{launchStatus.title}</dd></div>
+                <div><dt>阶段</dt><dd>{describeLaunchStep(state.lastLaunchAttempt?.step)}</dd></div>
+                <div><dt>endpoint</dt><dd>{state.lastLaunchAttempt?.endpoint ?? "暂无"}</dd></div>
+                <div><dt>Kiro 路径</dt><dd>{state.lastLaunchAttempt?.installPath ?? "暂无"}</dd></div>
+              </dl>
+              <p className="launch-detail">{state.lastLaunchAttempt?.detail ?? "点击顶部入口后，这里会记录最近一次启动尝试的阶段和结果。"}</p>
+              {state.lastLaunchAttempt?.error ? (
+                <pre className="summary-block compact">{state.lastLaunchAttempt.error}</pre>
+              ) : null}
+            </article>
+
+            <article className={`workspace-card launch-card ${bootstrapStatus.tone}`}>
+              <div className="card-head">
+                <div>
+                  <span className="panel-tag">Bootstrap</span>
+                  <h3>启动预热状态</h3>
+                </div>
+                <span className="tiny-meta">{formatTime(state.lastBootstrapAttempt?.finishedAt ?? state.lastBootstrapAttempt?.startedAt ?? null)}</span>
+              </div>
+              <dl className="kv-grid">
+                <div><dt>结果</dt><dd>{bootstrapStatus.title}</dd></div>
+                <div><dt>阶段</dt><dd>{describeBootstrapStep(state.lastBootstrapAttempt?.step)}</dd></div>
+                <div><dt>endpoint</dt><dd>{state.lastBootstrapAttempt?.endpoint ?? "暂无"}</dd></div>
+                <div><dt>Kiro 路径</dt><dd>{state.lastBootstrapAttempt?.installPath ?? "暂无"}</dd></div>
+              </dl>
+              <p className="launch-detail">{state.lastBootstrapAttempt?.detail ?? "如果开启了启动时自动应用，这里会显示最近一次预热的执行结果。"}</p>
+              {state.lastBootstrapAttempt?.error ? (
+                <pre className="summary-block compact">{state.lastBootstrapAttempt.error}</pre>
               ) : null}
             </article>
           </section>
@@ -1515,6 +1723,7 @@ export function App() {
             </div>
 
             <div className="button-stack">
+              <button className="ghost-button" onClick={() => openResource("quickstart")}>打开 Quickstart</button>
               <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制诊断摘要</button>
               <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
               <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>

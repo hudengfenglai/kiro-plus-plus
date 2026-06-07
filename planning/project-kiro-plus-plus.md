@@ -63,9 +63,21 @@ Recent Progress:
 - Added a non-destructive "clear support bundle history" action so repeated smoke tests can reset exported-bundle state without removing local export files.
 - Persisted the currently selected support bundle history item so reopening the desktop app can return to the same historical snapshot instead of always falling back to the latest export.
 - Added single-item support-bundle history removal so operators can prune stale records without wiping the whole history or touching exported files on disk.
+- Persisted the latest `Launch Kiro with Kiro++` attempt state so packaged-start failures now leave a visible record instead of disappearing into a silent startup path.
+- Added a dedicated launch status card to the workbench so users can see which step failed across detect/proxy/routing/launch without re-running the flow blindly.
+- Wired `autoApplyOnLaunch` into real desktop bootstrap behavior so opening the app can now auto-start the proxy and re-apply BYOK when the user enables that preference.
+- Added a workbench toggle for startup auto-apply so the behavior is user-visible and configurable instead of remaining a dormant settings field.
+- Fixed the actual startup wiring so Electron now triggers `runtime.bootstrap()` on app ready and the renderer's first state fetch also goes through bootstrap instead of bypassing the auto-apply path.
+- Split startup preheat visibility from manual Kiro launch visibility by recording a separate bootstrap attempt state, so users can tell whether startup auto-apply failed before they ever touched the launch button.
+- Limited renderer bootstrap calls to first load only; later refreshes now use plain `getState()` so routine UI refreshes do not re-trigger startup auto-apply behavior.
+- Reworked desktop documentation resource lookup to stop depending on `process.cwd()` alone and to cover packaged `resources\\docs` installs alongside development-path fallbacks.
+- Rewrote README toward the real Windows desktop product flow and added a focused desktop quickstart so the packaged app now has user-facing setup, preheat, support-bundle, and troubleshooting guidance that matches the current implementation.
+- Wired the new desktop quickstart guide into the in-app documentation entry list so packaged builds can open a first-run guide directly instead of sending new users to the broader README first.
+- Promoted the quickstart guide higher in the UI by adding direct entry buttons on the home hero and diagnostics rail, reducing the chance that first-run users miss the shortest supported setup path.
+- Embedded a compact quickstart summary directly into the home hero stack and the main workspace so first-run users can see the shortest supported sequence without leaving the app surface at all.
 
 Verification:
-- `npm test` passes with 51 tests.
+- `npm test` passes with 63 tests.
 - `npm run typecheck` succeeds.
 - `npm run desktop:build` succeeds.
 - Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.

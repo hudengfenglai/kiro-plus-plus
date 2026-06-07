@@ -68,6 +68,17 @@ export interface DiagnosticsExportBundle {
   text: string;
 }
 
+export interface LaunchAttempt {
+  startedAt: string;
+  finishedAt: string | null;
+  status: "running" | "success" | "error" | "skipped";
+  step: string;
+  detail: string;
+  endpoint: string | null;
+  installPath: string | null;
+  error: string | null;
+}
+
 export interface BootstrapStep {
   key: string;
   title: string;
@@ -115,6 +126,8 @@ export interface AppState {
     runtime: {
       exportHistory: DiagnosticsExportBundle[];
       lastExportBundle: DiagnosticsExportBundle | null;
+      lastLaunchAttempt: LaunchAttempt | null;
+      lastBootstrapAttempt: LaunchAttempt | null;
       selectedExportBundleName: string | null;
     };
   };
@@ -140,4 +153,6 @@ export interface AppState {
   lastAppliedKiroBackup: AppState["settings"]["lastAppliedKiroBackup"];
   exportHistory: DiagnosticsExportBundle[];
   lastExportBundle: DiagnosticsExportBundle | null;
+  lastLaunchAttempt: LaunchAttempt | null;
+  lastBootstrapAttempt: LaunchAttempt | null;
 }

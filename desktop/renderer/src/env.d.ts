@@ -20,6 +20,7 @@ declare global {
       stopProxy: () => Promise<unknown>;
       restartProxy: () => Promise<unknown>;
       setByokEnabled: (enabled: boolean) => Promise<unknown>;
+      setAutoApplyOnLaunch: (enabled: boolean) => Promise<AppState>;
       saveProvider: (payload: unknown) => Promise<unknown>;
       testProvider: (payload: unknown) => Promise<unknown>;
       fetchModels: (payload: unknown) => Promise<unknown>;

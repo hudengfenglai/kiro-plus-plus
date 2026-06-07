@@ -43,6 +43,9 @@ async function maybeLaunchKiro(runtime) {
 
 app.whenReady().then(() => {
   const runtime = registerIpcHandlers();
+  runtime.bootstrap().catch((error) => {
+    console.error("[kiro++] bootstrap failed:", error instanceof Error ? error.message : String(error));
+  });
   createWindow();
   maybeLaunchKiro(runtime);
   app.on("activate", () => {

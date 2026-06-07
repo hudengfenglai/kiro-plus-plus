@@ -14,6 +14,7 @@ export const IPC_CHANNELS = {
   proxyStop: "proxy:stop",
   proxyRestart: "proxy:restart",
   proxySetEnabled: "proxy:set-enabled",
+  proxySetAutoApplyOnLaunch: "proxy:set-auto-apply-on-launch",
   providerSave: "provider:save",
   providerTest: "provider:test",
   providerFetchModels: "provider:fetch-models",

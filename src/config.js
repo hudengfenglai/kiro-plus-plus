@@ -16,6 +16,8 @@ const DEFAULT_LAST_SUCCESSFUL_PROVIDER_TEST = null;
 const DEFAULT_LAST_APPLIED_KIRO_BACKUP = null;
 const DEFAULT_LAST_EXPORT_BUNDLE = null;
 const DEFAULT_EXPORT_HISTORY = [];
+const DEFAULT_LAST_LAUNCH_ATTEMPT = null;
+const DEFAULT_LAST_BOOTSTRAP_ATTEMPT = null;
 const MAX_EXPORT_HISTORY = 5;
 
 function normalizeTimestamp(value) {
@@ -199,6 +201,42 @@ function normalizeSelectedExportBundleName(value, exportHistory, lastExportBundl
   return lastExportBundle?.bundleName ?? null;
 }
 
+function normalizeLaunchAttempt(value = DEFAULT_LAST_LAUNCH_ATTEMPT) {
+  if (!value || typeof value !== "object") return null;
+  if (!value.startedAt || !value.status || !value.step) return null;
+  const status = ["running", "success", "error"].includes(value.status)
+    ? value.status
+    : "error";
+  return {
+    startedAt: normalizeTimestamp(value.startedAt),
+    finishedAt: normalizeTimestamp(value.finishedAt),
+    status,
+    step: String(value.step),
+    detail: String(value.detail ?? ""),
+    endpoint: value.endpoint ? String(value.endpoint) : null,
+    installPath: value.installPath ? String(value.installPath) : null,
+    error: value.error ? String(value.error) : null
+  };
+}
+
+function normalizeBootstrapAttempt(value = DEFAULT_LAST_BOOTSTRAP_ATTEMPT) {
+  if (!value || typeof value !== "object") return null;
+  if (!value.startedAt || !value.status || !value.step) return null;
+  const status = ["running", "success", "error", "skipped"].includes(value.status)
+    ? value.status
+    : "error";
+  return {
+    startedAt: normalizeTimestamp(value.startedAt),
+    finishedAt: normalizeTimestamp(value.finishedAt),
+    status,
+    step: String(value.step),
+    detail: String(value.detail ?? ""),
+    endpoint: value.endpoint ? String(value.endpoint) : null,
+    installPath: value.installPath ? String(value.installPath) : null,
+    error: value.error ? String(value.error) : null
+  };
+}
+
 export function buildProviderProfileFromPreset(presetId) {
   const preset = PROVIDER_PRESETS[presetId];
   if (!preset) {
@@ -232,6 +270,12 @@ export function normalizeAppSettings(input = {}) {
   const lastExportBundle = normalizeDiagnosticsExportBundle(
     input.runtime?.lastExportBundle ?? input.lastExportBundle
   );
+  const lastLaunchAttempt = normalizeLaunchAttempt(
+    input.runtime?.lastLaunchAttempt ?? input.lastLaunchAttempt
+  );
+  const lastBootstrapAttempt = normalizeBootstrapAttempt(
+    input.runtime?.lastBootstrapAttempt ?? input.lastBootstrapAttempt
+  );
 
   return {
     selectedProviderId,
@@ -254,6 +298,8 @@ export function normalizeAppSettings(input = {}) {
     runtime: {
       exportHistory,
       lastExportBundle,
+      lastLaunchAttempt,
+      lastBootstrapAttempt,
       selectedExportBundleName: normalizeSelectedExportBundleName(
         input.runtime?.selectedExportBundleName,
         exportHistory,

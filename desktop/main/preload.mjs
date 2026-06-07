@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("kiroPlusApp", {
   stopProxy: () => ipcRenderer.invoke(IPC_CHANNELS.proxyStop),
   restartProxy: () => ipcRenderer.invoke(IPC_CHANNELS.proxyRestart),
   setByokEnabled: (enabled) => ipcRenderer.invoke(IPC_CHANNELS.proxySetEnabled, enabled),
+  setAutoApplyOnLaunch: (enabled) => ipcRenderer.invoke(IPC_CHANNELS.proxySetAutoApplyOnLaunch, enabled),
   saveProvider: (payload) => ipcRenderer.invoke(IPC_CHANNELS.providerSave, payload),
   testProvider: (payload) => ipcRenderer.invoke(IPC_CHANNELS.providerTest, payload),
   fetchModels: (payload) => ipcRenderer.invoke(IPC_CHANNELS.providerFetchModels, payload),

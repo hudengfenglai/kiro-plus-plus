@@ -111,3 +111,47 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
   assert.match(settings.runtime.lastExportBundle?.zipPath ?? "", /\.zip$/);
   assert.equal(settings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
 });
+
+test("normalizeAppSettings preserves last launch attempt metadata", () => {
+  const settings = normalizeAppSettings({
+    runtime: {
+      lastLaunchAttempt: {
+        startedAt: "2026-06-08T12:00:00.000Z",
+        finishedAt: "2026-06-08T12:00:05.000Z",
+        status: "error",
+        step: "apply-routing",
+        detail: "Launch Kiro with Kiro++ 失败。",
+        endpoint: "http://127.0.0.1:43119",
+        installPath: "E:\\Kiro\\Kiro.exe",
+        error: "DeepSeek 尚未保存 API Key，请先在左侧填写并保存。"
+      }
+    }
+  });
+
+  assert.equal(settings.runtime.lastLaunchAttempt?.status, "error");
+  assert.equal(settings.runtime.lastLaunchAttempt?.step, "apply-routing");
+  assert.equal(settings.runtime.lastLaunchAttempt?.endpoint, "http://127.0.0.1:43119");
+  assert.equal(settings.runtime.lastLaunchAttempt?.installPath, "E:\\Kiro\\Kiro.exe");
+});
+
+test("normalizeAppSettings preserves last bootstrap attempt metadata", () => {
+  const settings = normalizeAppSettings({
+    runtime: {
+      lastBootstrapAttempt: {
+        startedAt: "2026-06-08T12:10:00.000Z",
+        finishedAt: "2026-06-08T12:10:02.000Z",
+        status: "success",
+        step: "apply-routing",
+        detail: "已自动启动代理并应用 BYOK 路由。",
+        endpoint: "http://127.0.0.1:43119",
+        installPath: "E:\\Kiro\\Kiro.exe",
+        error: null
+      }
+    }
+  });
+
+  assert.equal(settings.runtime.lastBootstrapAttempt?.status, "success");
+  assert.equal(settings.runtime.lastBootstrapAttempt?.step, "apply-routing");
+  assert.equal(settings.runtime.lastBootstrapAttempt?.endpoint, "http://127.0.0.1:43119");
+  assert.equal(settings.runtime.lastBootstrapAttempt?.installPath, "E:\\Kiro\\Kiro.exe");
+});

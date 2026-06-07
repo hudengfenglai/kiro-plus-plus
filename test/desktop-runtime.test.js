@@ -116,6 +116,50 @@ test("desktop runtime derives bootstrap guidance and records provider test succe
   assert.equal(after.bootstrap.recommendedTab, "status");
 });
 
+test("desktop runtime persists autoApplyOnLaunch preference", async () => {
+  let savedSettings = normalizeAppSettings();
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => null
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: false,
+        installPath: null,
+        searchedInstallPaths: [],
+        detectionHint: "未检测到 Kiro 安装。",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => null
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  const nextState = await runtime.setAutoApplyOnLaunch(true);
+  assert.equal(savedSettings.kiro.autoApplyOnLaunch, true);
+  assert.equal(nextState.settings.kiro.autoApplyOnLaunch, true);
+});
+
 test("desktop runtime toggles byok and exports redacted diagnostics summary", async () => {
   let savedSettings = normalizeAppSettings();
   const actions = [];
@@ -198,11 +242,15 @@ test("desktop runtime toggles byok and exports redacted diagnostics summary", as
 });
 
 test("desktop runtime launches kiro after ensuring proxy and routing", async () => {
+  let savedSettings = normalizeAppSettings({ isByokEnabled: false });
   const launched = [];
   const runtime = new DesktopRuntime({
     settingsStore: {
-      load: async () => normalizeAppSettings({ isByokEnabled: false }),
-      save: async (next) => normalizeAppSettings(next)
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
     },
     secretStore: {
       get: async () => "sk-test"
@@ -248,6 +296,176 @@ test("desktop runtime launches kiro after ensuring proxy and routing", async () 
   const result = await runtime.launchKiroWithProxy();
   assert.equal(result.launched, true);
   assert.equal(launched[0], "E:\\Kiro\\Kiro.exe");
+  assert.equal(savedSettings.runtime.lastLaunchAttempt?.status, "success");
+  assert.equal(savedSettings.runtime.lastLaunchAttempt?.step, "launch-kiro");
+  assert.equal(savedSettings.runtime.lastLaunchAttempt?.installPath, "E:\\Kiro\\Kiro.exe");
+  assert.equal(savedSettings.runtime.lastLaunchAttempt?.endpoint, "http://127.0.0.1:43119");
+});
+
+test("desktop runtime bootstrap auto-applies proxy and routing when enabled", async () => {
+  let savedSettings = normalizeAppSettings({
+    kiro: {
+      autoApplyOnLaunch: true
+    }
+  });
+  const actions = [];
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null }),
+      start: async () => {
+        actions.push("start-proxy");
+        return { state: "running", endpoint: "http://127.0.0.1:43119", error: null };
+      }
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      applyRouting: async () => {
+        actions.push("apply-routing");
+        return { backupPath: "backups\\settings.6.json" };
+      },
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  const state = await runtime.bootstrap();
+  assert.deepEqual(actions, ["start-proxy", "apply-routing"]);
+  assert.equal(state.settings.isByokEnabled, true);
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.status, "success");
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.step, "apply-routing");
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.installPath, "E:\\Kiro\\Kiro.exe");
+});
+
+test("desktop runtime bootstrap stays resilient when auto-apply fails", async () => {
+  let savedSettings = normalizeAppSettings({
+    kiro: {
+      autoApplyOnLaunch: true
+    }
+  });
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => null
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: false,
+        installPath: null,
+        searchedInstallPaths: [],
+        detectionHint: "未检测到 Kiro 安装。",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => null
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  const state = await runtime.bootstrap();
+  assert.equal(state.kiroDetection.installed, false);
+  assert.equal(state.settings.kiro.autoApplyOnLaunch, true);
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.status, "error");
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.step, "bootstrap-failed");
+  assert.match(savedSettings.runtime.lastBootstrapAttempt?.error ?? "", /未检测到 Kiro 安装/);
+});
+
+test("desktop runtime bootstrap records skipped state when auto-apply is disabled", async () => {
+  let savedSettings = normalizeAppSettings({
+    kiro: {
+      autoApplyOnLaunch: false
+    }
+  });
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => null
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: false,
+        installPath: null,
+        searchedInstallPaths: [],
+        detectionHint: "未检测到 Kiro 安装。",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => null
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  const state = await runtime.bootstrap();
+  assert.equal(state.settings.kiro.autoApplyOnLaunch, false);
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.status, "skipped");
+  assert.equal(savedSettings.runtime.lastBootstrapAttempt?.step, "bootstrap-disabled");
 });
 
 test("desktop runtime exports diagnostics to a local file", async () => {
@@ -687,7 +905,7 @@ test("desktop runtime applyRouting stops early when Kiro is not detected", async
 });
 
 test("desktop runtime rejects invalid provider default model before launch", async () => {
-  const invalidSettings = normalizeAppSettings({
+  let invalidSettings = normalizeAppSettings({
     selectedProviderId: "deepseek",
     providers: [
       {
@@ -712,7 +930,10 @@ test("desktop runtime rejects invalid provider default model before launch", asy
   const runtime = new DesktopRuntime({
     settingsStore: {
       load: async () => invalidSettings,
-      save: async (next) => normalizeAppSettings(next)
+      save: async (next) => {
+        invalidSettings = normalizeAppSettings(next);
+        return invalidSettings;
+      }
     },
     secretStore: {
       get: async () => "sk-test"
@@ -756,6 +977,9 @@ test("desktop runtime rejects invalid provider default model before launch", asy
     () => runtime.launchKiroWithProxy(),
     /不在 models\[\] 列表中/
   );
+  assert.equal(invalidSettings.runtime.lastLaunchAttempt?.status, "error");
+  assert.equal(invalidSettings.runtime.lastLaunchAttempt?.step, "start-proxy");
+  assert.match(invalidSettings.runtime.lastLaunchAttempt?.error ?? "", /不在 models\[\] 列表中/);
 });
 
 test("desktop runtime reports readiness issues for missing key and missing Kiro", async () => {

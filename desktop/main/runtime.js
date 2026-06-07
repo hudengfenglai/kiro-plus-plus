@@ -184,6 +184,8 @@ function deriveBootstrapState({ settings, kiroDetection, proxyStatus, diagnose }
 function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagnose, recentLogs, readinessIssues = [] }) {
   const failure = summarizeRecentFailure(recentLogs);
   const primaryIssue = readinessIssues[0] ?? null;
+  const launchAttempt = settings.runtime?.lastLaunchAttempt ?? null;
+  const bootstrapAttempt = settings.runtime?.lastBootstrapAttempt ?? null;
   return [
     "Kiro++ diagnostics summary",
     `BYOK: ${settings.isByokEnabled ? "enabled" : "disabled"}`,
@@ -196,6 +198,8 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
     `Unsupported operations: ${(diagnose?.unsupportedOperationsSeen ?? []).join(", ") || "-"}`,
     `Last provider test: ${settings.lastSuccessfulProviderTest?.modelId ?? "-"}`,
     `Last applied backup: ${settings.lastAppliedKiroBackup?.backupPath ?? "-"}`,
+    `Last bootstrap attempt: ${bootstrapAttempt ? `${bootstrapAttempt.status} / ${bootstrapAttempt.step}` : "-"}`,
+    `Last launch attempt: ${launchAttempt ? `${launchAttempt.status} / ${launchAttempt.step}` : "-"}`,
     `Readiness issues: ${readinessIssues.length}`,
     `Primary issue: ${primaryIssue ? `${primaryIssue.title} -> ${primaryIssue.action}` : "-"}`,
     ...readinessIssues.map((issue, index) => `Issue ${index + 1}: [${issue.severity}] ${issue.title} / ${issue.action}`),
@@ -370,6 +374,7 @@ export class DesktopRuntime {
     this.diagnosticsExportDir = diagnosticsExportDir;
     this.zipBundle = zipBundle ?? defaultZipBundle;
     this.now = now;
+    this.bootstrapPromise = null;
   }
 
   async getSelectedProvider(settings) {
@@ -428,6 +433,28 @@ export class DesktopRuntime {
         exportHistory: nextHistory,
         lastExportBundle: bundle,
         selectedExportBundleName: bundle.bundleName
+      }
+    });
+  }
+
+  async saveLaunchAttempt(attempt) {
+    const settings = await this.settingsStore.load();
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        lastLaunchAttempt: attempt
+      }
+    });
+  }
+
+  async saveBootstrapAttempt(attempt) {
+    const settings = await this.settingsStore.load();
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        lastBootstrapAttempt: attempt
       }
     });
   }
@@ -527,11 +554,73 @@ export class DesktopRuntime {
       lastSuccessfulProviderTest: settings.lastSuccessfulProviderTest,
       lastAppliedKiroBackup: settings.lastAppliedKiroBackup,
       exportHistory,
-      lastExportBundle: selectedBundle
+      lastExportBundle: selectedBundle,
+      lastLaunchAttempt: settings.runtime?.lastLaunchAttempt ?? null,
+      lastBootstrapAttempt: settings.runtime?.lastBootstrapAttempt ?? null
     };
   }
 
   async bootstrap() {
+    if (!this.bootstrapPromise) {
+      this.bootstrapPromise = this.runBootstrap()
+        .finally(() => {
+          this.bootstrapPromise = null;
+        });
+    }
+    return this.bootstrapPromise;
+  }
+
+  async runBootstrap() {
+    const settings = await this.settingsStore.load();
+    if (!settings.kiro.autoApplyOnLaunch) {
+      await this.saveBootstrapAttempt({
+        startedAt: this.now().toISOString(),
+        finishedAt: this.now().toISOString(),
+        status: "skipped",
+        step: "bootstrap-disabled",
+        detail: "启动时自动应用未启用，已跳过预热。",
+        endpoint: this.proxyService.getStatus().endpoint ?? null,
+        installPath: null,
+        error: null
+      });
+      return this.getState();
+    }
+
+    const startedAt = this.now().toISOString();
+    try {
+      await this.saveBootstrapAttempt({
+        startedAt,
+        finishedAt: null,
+        status: "running",
+        step: "bootstrap-start",
+        detail: "正在执行启动预热。",
+        endpoint: this.proxyService.getStatus().endpoint ?? null,
+        installPath: null,
+        error: null
+      });
+      const result = await this.ensureProxyAndRouting();
+      await this.saveBootstrapAttempt({
+        startedAt,
+        finishedAt: this.now().toISOString(),
+        status: "success",
+        step: result.step,
+        detail: result.detail,
+        endpoint: result.endpoint ?? this.proxyService.getStatus().endpoint ?? null,
+        installPath: result.installPath ?? null,
+        error: null
+      });
+    } catch (error) {
+      await this.saveBootstrapAttempt({
+        startedAt,
+        finishedAt: this.now().toISOString(),
+        status: "error",
+        step: "bootstrap-failed",
+        detail: "启动预热失败。",
+        endpoint: this.proxyService.getStatus().endpoint ?? null,
+        installPath: null,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
     return this.getState();
   }
 
@@ -641,6 +730,18 @@ export class DesktopRuntime {
     return enabled ? this.applyRouting() : this.restoreKiro();
   }
 
+  async setAutoApplyOnLaunch(enabled) {
+    const settings = await this.settingsStore.load();
+    await this.saveSettings({
+      ...settings,
+      kiro: {
+        ...settings.kiro,
+        autoApplyOnLaunch: Boolean(enabled)
+      }
+    });
+    return this.getState();
+  }
+
   async listLogs(filters) {
     return this.logService.listRequests(filters);
   }
@@ -746,13 +847,126 @@ export class DesktopRuntime {
   }
 
   async launchKiroWithProxy() {
-    await this.detectKiroOrThrow();
+    const startedAt = this.now().toISOString();
+    let detection = null;
+    let endpoint = null;
+    let currentStep = "detect-kiro";
+
+    try {
+      detection = await this.detectKiroOrThrow();
+      await this.saveLaunchAttempt({
+        startedAt,
+        finishedAt: null,
+        status: "running",
+        step: currentStep,
+        detail: "已检测到 Kiro，准备检查代理与路由。",
+        endpoint: null,
+        installPath: detection.installPath,
+        error: null
+      });
+
+      if (this.proxyService.getStatus().state !== "running") {
+        currentStep = "start-proxy";
+        await this.saveLaunchAttempt({
+          startedAt,
+          finishedAt: null,
+          status: "running",
+          step: currentStep,
+          detail: "正在启动本地代理。",
+          endpoint: null,
+          installPath: detection.installPath,
+          error: null
+        });
+        const proxy = await this.startProxy();
+        endpoint = proxy?.endpoint ?? null;
+      } else {
+        endpoint = this.proxyService.getStatus().endpoint ?? null;
+      }
+
+      currentStep = "apply-routing";
+      await this.saveLaunchAttempt({
+        startedAt,
+        finishedAt: null,
+        status: "running",
+        step: currentStep,
+        detail: "正在应用 BYOK 路由。",
+        endpoint,
+        installPath: detection.installPath,
+        error: null
+      });
+      await this.setByokEnabled(true);
+
+      detection = await this.detectKiroOrThrow();
+      currentStep = "launch-kiro";
+      await this.saveLaunchAttempt({
+        startedAt,
+        finishedAt: null,
+        status: "running",
+        step: currentStep,
+        detail: "正在拉起 Kiro 应用。",
+        endpoint: this.proxyService.getStatus().endpoint ?? endpoint,
+        installPath: detection.installPath,
+        error: null
+      });
+      const result = await this.kiroService.launchKiro(detection.installPath);
+      await this.saveLaunchAttempt({
+        startedAt,
+        finishedAt: this.now().toISOString(),
+        status: "success",
+        step: currentStep,
+        detail: "Kiro 启动指令已发出。",
+        endpoint: this.proxyService.getStatus().endpoint ?? endpoint,
+        installPath: detection.installPath,
+        error: null
+      });
+      return result;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await this.saveLaunchAttempt({
+        startedAt,
+        finishedAt: this.now().toISOString(),
+        status: "error",
+        step: currentStep,
+        detail: "Launch Kiro with Kiro++ 失败。",
+        endpoint: this.proxyService.getStatus().endpoint ?? endpoint,
+        installPath: detection?.installPath ?? null,
+        error: message
+      });
+      throw error;
+    }
+  }
+
+  async ensureProxyAndRouting() {
+    const detection = await this.detectKiroOrThrow();
     if (this.proxyService.getStatus().state !== "running") {
       await this.startProxy();
     }
-    await this.setByokEnabled(true);
-    const detection = await this.detectKiroOrThrow();
-    return this.kiroService.launchKiro(detection.installPath);
+    const settings = await this.settingsStore.load();
+    if (!settings.isByokEnabled) {
+      await this.applyRouting();
+      return {
+        step: "apply-routing",
+        detail: "已自动启动代理并应用 BYOK 路由。",
+        endpoint: this.proxyService.getStatus().endpoint ?? null,
+        installPath: detection.installPath
+      };
+    }
+    const diagnose = await this.kiroService.diagnose().catch(() => null);
+    if ((diagnose?.localRegions.length ?? 0) === 0) {
+      await this.applyRouting();
+      return {
+        step: "apply-routing",
+        detail: "已重新应用 BYOK 路由以恢复本地 endpoint 覆盖。",
+        endpoint: this.proxyService.getStatus().endpoint ?? null,
+        installPath: detection.installPath
+      };
+    }
+    return {
+      step: "bootstrap-ready",
+      detail: "代理与 BYOK 路由已处于可用状态，无需重复应用。",
+      endpoint: this.proxyService.getStatus().endpoint ?? null,
+      installPath: detection.installPath
+    };
   }
 }
 

@@ -1,4 +1,3 @@
-import { access } from "node:fs/promises";
 import { app, ipcMain, shell } from "electron";
 import { join } from "node:path";
 
@@ -10,6 +9,7 @@ import { KiroIntegrationService } from "./services/kiro-integration-service.js";
 import { LogService } from "./services/log-service.js";
 import { SettingsStore } from "./services/settings-store.js";
 import { DesktopRuntime } from "./runtime.js";
+import { resolveResourcePath } from "./resource-paths.js";
 
 export function createDesktopRuntime() {
   const settingsStore = new SettingsStore({
@@ -37,35 +37,10 @@ export function registerIpcHandlers(runtime = createDesktopRuntime()) {
   ipcMain.handle(IPC_CHANNELS.appBootstrap, async () => runtime.bootstrap());
   ipcMain.handle(IPC_CHANNELS.appLaunchKiro, async () => runtime.launchKiroWithProxy());
   ipcMain.handle(IPC_CHANNELS.appOpenResource, async (_event, resourceId) => {
-    const resources = {
-      readme: [
-        join(process.cwd(), "docs", "README.md"),
-        join(process.cwd(), "README.md")
-      ],
-      providers: [join(process.cwd(), "docs", "domestic-providers.md")],
-      streaming: [join(process.cwd(), "docs", "streaming-chat.md")],
-      plan: [
-        join(process.cwd(), "docs", "project-kiro-plus-plus.md"),
-        join(process.cwd(), "planning", "project-kiro-plus-plus.md")
-      ]
-    };
-    const candidates = resources[resourceId];
-    if (!candidates) {
-      throw new Error(`Unknown resource: ${resourceId}`);
-    }
-    let target = null;
-    for (const candidate of candidates) {
-      try {
-        await access(candidate);
-        target = candidate;
-        break;
-      } catch {
-        // try next
-      }
-    }
-    if (!target) {
-      throw new Error(`Resource is unavailable: ${resourceId}`);
-    }
+    const target = await resolveResourcePath(resourceId, {
+      appPath: app.getAppPath(),
+      cwd: process.cwd()
+    });
     const result = await shell.openPath(target);
     if (result) {
       throw new Error(result);
@@ -93,6 +68,7 @@ export function registerIpcHandlers(runtime = createDesktopRuntime()) {
   ipcMain.handle(IPC_CHANNELS.proxyStop, async () => runtime.stopProxy());
   ipcMain.handle(IPC_CHANNELS.proxyRestart, async () => runtime.restartProxy());
   ipcMain.handle(IPC_CHANNELS.proxySetEnabled, async (_event, enabled) => runtime.setByokEnabled(Boolean(enabled)));
+  ipcMain.handle(IPC_CHANNELS.proxySetAutoApplyOnLaunch, async (_event, enabled) => runtime.setAutoApplyOnLaunch(Boolean(enabled)));
 
   ipcMain.handle(IPC_CHANNELS.providerSave, async (_event, payload) => runtime.saveProvider(payload));
   ipcMain.handle(IPC_CHANNELS.providerTest, async (_event, payload) => runtime.testProvider(payload));
