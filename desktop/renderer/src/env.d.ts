@@ -9,7 +9,9 @@ declare global {
       bootstrap: () => Promise<AppState>;
       launchKiroWithProxy: () => Promise<unknown>;
       openResource: (resourceId: string) => Promise<unknown>;
+      openPath: (target: string) => Promise<unknown>;
       exportDiagnostics: () => Promise<string>;
+      exportDiagnosticsToFile: () => Promise<{ bundleDir: string; readmePath: string; summaryPath: string; jsonPath: string; requestsPath: string; manifestPath: string; text: string }>;
       startProxy: () => Promise<unknown>;
       stopProxy: () => Promise<unknown>;
       restartProxy: () => Promise<unknown>;

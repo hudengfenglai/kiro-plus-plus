@@ -67,6 +67,15 @@ export interface BootstrapState {
   steps: BootstrapStep[];
 }
 
+export interface ReadinessIssue {
+  key: string;
+  severity: "error" | "warning";
+  title: string;
+  detail: string;
+  focus: BootstrapState["recommendedTab"];
+  action: string;
+}
+
 export interface AppState {
   settings: {
     selectedProviderId: string;
@@ -95,6 +104,8 @@ export interface AppState {
   kiroDetection: {
     installed: boolean;
     installPath: string | null;
+    searchedInstallPaths: string[];
+    detectionHint: string;
     settingsPath: string;
     profilesDir: string;
     backupDir: string;
@@ -106,6 +117,7 @@ export interface AppState {
   diagnose: KiroDiagnoseReport | null;
   recentLogs: RequestLogEntry[];
   bootstrap: BootstrapState;
+  readinessIssues: ReadinessIssue[];
   lastSuccessfulProviderTest: AppState["settings"]["lastSuccessfulProviderTest"];
   lastAppliedKiroBackup: AppState["settings"]["lastAppliedKiroBackup"];
 }

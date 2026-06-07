@@ -27,7 +27,8 @@ export function createDesktopRuntime() {
     providerCatalog,
     proxyService,
     kiroService,
-    logService
+    logService,
+    diagnosticsExportDir: join(app.getPath("userData"), "exports")
   });
 }
 
@@ -71,7 +72,18 @@ export function registerIpcHandlers(runtime = createDesktopRuntime()) {
     }
     return { ok: true, target };
   });
+  ipcMain.handle(IPC_CHANNELS.appOpenPath, async (_event, target) => {
+    if (!target || typeof target !== "string") {
+      throw new Error("Path is required");
+    }
+    const result = await shell.openPath(target);
+    if (result) {
+      throw new Error(result);
+    }
+    return { ok: true, target };
+  });
   ipcMain.handle(IPC_CHANNELS.diagnosticsExport, async () => runtime.exportDiagnostics());
+  ipcMain.handle(IPC_CHANNELS.diagnosticsExportFile, async () => runtime.exportDiagnosticsToFile());
 
   ipcMain.handle(IPC_CHANNELS.proxyStart, async () => runtime.startProxy());
   ipcMain.handle(IPC_CHANNELS.proxyStop, async () => runtime.stopProxy());

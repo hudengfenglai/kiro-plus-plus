@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import { normalizeAppSettings } from "../src/config.js";
 import { DesktopRuntime } from "../desktop/main/runtime.js";
@@ -75,6 +78,8 @@ test("desktop runtime derives bootstrap guidance and records provider test succe
       detectKiro: async () => ({
         installed: true,
         installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
         settingsPath: "settings.json",
         profilesDir: "profiles",
         backupDir: "backups",
@@ -97,6 +102,7 @@ test("desktop runtime derives bootstrap guidance and records provider test succe
   const before = await runtime.getState();
   assert.equal(before.bootstrap.recommendedTab, "providers");
   assert.equal(before.bootstrap.steps[1].done, false);
+  assert.equal(before.readinessIssues[0]?.key, "provider-test");
 
   await runtime.testProvider({
     profile: before.settings.providers[0],
@@ -107,6 +113,7 @@ test("desktop runtime derives bootstrap guidance and records provider test succe
   const after = await runtime.getState();
   assert.equal(after.lastSuccessfulProviderTest?.modelId, "deepseek-v4-pro");
   assert.equal(after.bootstrap.steps[1].done, true);
+  assert.equal(after.bootstrap.recommendedTab, "status");
 });
 
 test("desktop runtime toggles byok and exports redacted diagnostics summary", async () => {
@@ -135,6 +142,8 @@ test("desktop runtime toggles byok and exports redacted diagnostics summary", as
       detectKiro: async () => ({
         installed: true,
         installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
         settingsPath: "settings.json",
         profilesDir: "profiles",
         backupDir: "backups",
@@ -177,6 +186,8 @@ test("desktop runtime toggles byok and exports redacted diagnostics summary", as
   const summary = await runtime.exportDiagnostics();
   assert.match(summary, /BYOK: enabled/);
   assert.match(summary, /GenerateAssistantResponse/);
+  assert.match(summary, /Readiness issues: 1/);
+  assert.match(summary, /Primary issue: 还没有做最小 Provider 验证 -> 测试 Provider/);
   assert.doesNotMatch(summary, /sk-test/);
 
   await runtime.setByokEnabled(false);
@@ -206,6 +217,8 @@ test("desktop runtime launches kiro after ensuring proxy and routing", async () 
       detectKiro: async () => ({
         installed: true,
         installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
         settingsPath: "settings.json",
         profilesDir: "profiles",
         backupDir: "backups",
@@ -233,4 +246,273 @@ test("desktop runtime launches kiro after ensuring proxy and routing", async () 
   const result = await runtime.launchKiroWithProxy();
   assert.equal(result.launched, true);
   assert.equal(launched[0], "E:\\Kiro\\Kiro.exe");
+});
+
+test("desktop runtime exports diagnostics to a local file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-"));
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => normalizeAppSettings(),
+      save: async (next) => normalizeAppSettings(next)
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [
+        {
+          at: "2026-06-07T12:00:00.000Z",
+          operation: "GenerateAssistantResponse",
+          status: 500,
+          requestId: "demo-export",
+          durationMs: 321,
+          bodyBytes: 42
+        }
+      ],
+      listRequests: async () => []
+    },
+    diagnosticsExportDir: dir,
+    now: () => new Date("2026-06-07T12:34:56.789Z")
+  });
+
+  const result = await runtime.exportDiagnosticsToFile();
+  assert.match(result.bundleDir, /kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z$/);
+  assert.match(result.readmePath, /README\.txt$/);
+  assert.match(result.summaryPath, /summary\.txt$/);
+  assert.match(result.jsonPath, /snapshot\.json$/);
+  assert.match(result.requestsPath, /recent-requests\.json$/);
+  assert.match(result.manifestPath, /manifest\.json$/);
+  const readmeText = await readFile(result.readmePath, "utf8");
+  assert.match(readmeText, /Kiro\+\+ support bundle/);
+  assert.match(readmeText, /summary\.txt/);
+  const text = await readFile(result.summaryPath, "utf8");
+  assert.equal(text, `${result.text}\n`);
+  assert.match(result.text, /Recent requests \(redacted\)/);
+  assert.match(result.text, /GenerateAssistantResponse \/ HTTP 500/);
+  assert.match(result.text, /requestId: demo-export/);
+  const jsonText = await readFile(result.jsonPath, "utf8");
+  const payload = JSON.parse(jsonText);
+  assert.equal(payload.exportedAt, "2026-06-07T12:34:56.789Z");
+  assert.match(payload.summary, /Kiro\+\+ diagnostics summary/);
+  assert.equal(payload.proxyStatus.state, "stopped");
+  assert.equal(payload.kiroDetection.installPath, "E:\\Kiro\\Kiro.exe");
+  assert.equal(payload.recentLogs[0].requestId, "demo-export");
+  const requestsText = await readFile(result.requestsPath, "utf8");
+  const requests = JSON.parse(requestsText);
+  assert.equal(requests[0].requestId, "demo-export");
+  const manifestText = await readFile(result.manifestPath, "utf8");
+  const manifest = JSON.parse(manifestText);
+  assert.equal(manifest.exportedAt, "2026-06-07T12:34:56.789Z");
+  assert.equal(manifest.files.readmePath, result.readmePath);
+  assert.equal(manifest.files.summaryPath, result.summaryPath);
+  assert.equal(manifest.files.jsonPath, result.jsonPath);
+  assert.equal(manifest.files.requestsPath, result.requestsPath);
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("desktop runtime applyRouting stops early when Kiro is not detected", async () => {
+  let applyCalled = false;
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => normalizeAppSettings(),
+      save: async (next) => normalizeAppSettings(next)
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "running", endpoint: "http://127.0.0.1:43119", error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: false,
+        installPath: null,
+        searchedInstallPaths: [
+          "C:\\Users\\HU\\AppData\\Local\\Programs\\Kiro\\Kiro.exe"
+        ],
+        detectionHint: "未检测到 Kiro 安装。已检查 1 个常见路径，请确认 Kiro 已安装或不在非标准目录。",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      applyRouting: async () => {
+        applyCalled = true;
+        return { backupPath: "backups\\settings.4.json" };
+      },
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "missing install"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  await assert.rejects(
+    () => runtime.applyRouting(),
+    /未检测到 Kiro 安装/
+  );
+  assert.equal(applyCalled, false);
+});
+
+test("desktop runtime rejects invalid provider default model before launch", async () => {
+  const invalidSettings = normalizeAppSettings({
+    selectedProviderId: "deepseek",
+    providers: [
+      {
+        id: "deepseek",
+        providerPresetId: "deepseek",
+        type: "openai-compatible",
+        label: "DeepSeek",
+        baseUrl: "https://api.deepseek.com",
+        defaultModel: "deepseek-v4-pro",
+        models: [
+          {
+            id: "deepseek-v4-flash",
+            name: "DeepSeek V4 Flash",
+            description: "fast",
+            note: ""
+          }
+        ]
+      }
+    ]
+  });
+
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => invalidSettings,
+      save: async (next) => normalizeAppSettings(next)
+    },
+    secretStore: {
+      get: async () => "sk-test"
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-flash", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null }),
+      start: async () => ({ state: "running", endpoint: "http://127.0.0.1:43119", error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      applyRouting: async () => ({ backupPath: "backups\\settings.5.json" }),
+      diagnose: async () => ({
+        localRegions: ["us-east-1"],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      }),
+      launchKiro: async () => ({ launched: true })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  await assert.rejects(
+    () => runtime.launchKiroWithProxy(),
+    /不在 models\[\] 列表中/
+  );
+});
+
+test("desktop runtime reports readiness issues for missing key and missing Kiro", async () => {
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => normalizeAppSettings(),
+      save: async (next) => normalizeAppSettings(next)
+    },
+    secretStore: {
+      get: async () => null
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: false,
+        installPath: null,
+        searchedInstallPaths: ["C:\\Users\\HU\\AppData\\Local\\Programs\\Kiro\\Kiro.exe"],
+        detectionHint: "未检测到 Kiro 安装。已检查 1 个常见路径，请确认 Kiro 已安装或不在非标准目录。",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: ["SendMessage"],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "missing install"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  const state = await runtime.getState();
+  assert.ok(state.readinessIssues.some((issue) => issue.key === "provider-api-key"));
+  assert.ok(state.readinessIssues.some((issue) => issue.key === "kiro-install"));
+  assert.ok(state.readinessIssues.some((issue) => issue.key === "unsupported-operations"));
+
+  const summary = await runtime.exportDiagnostics();
+  assert.match(summary, /Readiness issues: 6/);
+  assert.match(summary, /Primary issue: Provider API Key 尚未保存 -> 填写并保存 Key/);
+  assert.match(summary, /Issue 1: \[error\] Provider API Key 尚未保存 \/ 填写并保存 Key/);
+  assert.match(summary, /Issue 6: \[warning\] 最近出现未兼容操作 \/ 查看日志/);
 });

@@ -470,6 +470,40 @@ pre {
   gap: 10px;
 }
 
+.hero-callout {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+  padding: 12px;
+}
+
+.hero-callout.error {
+  border-color: rgba(255, 112, 103, 0.26);
+}
+
+.hero-callout.warning {
+  border-color: rgba(235, 177, 92, 0.24);
+}
+
+.hero-callout.success {
+  border-color: rgba(106, 201, 142, 0.26);
+}
+
+.hero-callout-copy strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.hero-callout-copy p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
 .kpi-card {
   border: 1px solid var(--border-soft);
   border-radius: 8px;
@@ -523,6 +557,41 @@ pre {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.issue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.issue-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+  padding: 12px;
+}
+
+.issue-row.error {
+  border-color: rgba(255, 112, 103, 0.26);
+}
+
+.issue-row.warning {
+  border-color: rgba(235, 177, 92, 0.24);
+}
+
+.issue-copy strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.issue-copy p {
+  margin: 0;
+  color: var(--text-soft);
 }
 
 .workbench-card {
@@ -706,7 +775,9 @@ pre {
   }
 
   .filter-row,
-  .field-grid {
+  .field-grid,
+  .hero-callout,
+  .issue-row {
     grid-template-columns: 1fr;
   }
 }

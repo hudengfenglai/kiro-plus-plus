@@ -52,6 +52,8 @@ const emptyState: AppState = {
   kiroDetection: {
     installed: false,
     installPath: null,
+    searchedInstallPaths: [],
+    detectionHint: "尚未检测 Kiro 安装。",
     settingsPath: "",
     profilesDir: "",
     backupDir: "",
@@ -63,6 +65,7 @@ const emptyState: AppState = {
     recommendedTab: "providers",
     steps: []
   },
+  readinessIssues: [],
   lastSuccessfulProviderTest: null,
   lastAppliedKiroBackup: null
 };
@@ -141,7 +144,7 @@ function requireDesktopApi() {
   if (window.kiroPlusApp) {
     return window.kiroPlusApp;
   }
-  throw new Error("Desktop bridge is unavailable. Restart Kiro++ after reinstalling the latest package.");
+  throw new Error("桌面桥接不可用。请安装最新版 Kiro++ 后重新启动应用。");
 }
 
 function nowIso() {
@@ -285,6 +288,7 @@ export function App() {
   );
 
   const selectedProviderLabel = selectedProvider?.label ?? "未配置";
+  const primaryIssue = state.readinessIssues[0] ?? null;
 
   const latestFailure = useMemo(
     () => [...logRows].find((entry) => entry.status >= 400) ?? null,
@@ -410,6 +414,33 @@ export function App() {
     setWorkbenchTab(meta.workbench);
     setStatus(meta.status);
     setView("console");
+  }
+
+  async function handleReadinessAction(issue: AppState["readinessIssues"][number]) {
+    switch (issue.key) {
+      case "proxy-not-running":
+        return runAction(() => requireDesktopApi().startProxy(), {
+          pending: "正在启动本地代理...",
+          success: "代理已启动。",
+          afterFocus: "kiro"
+        });
+      case "kiro-byok-disabled":
+        return runAction(() => requireDesktopApi().setByokEnabled(true), {
+          pending: "正在启用 BYOK...",
+          success: "BYOK 已启用。",
+          afterFocus: "kiro"
+        });
+      case "kiro-no-local-region":
+      case "unsupported-operations":
+        return runAction(() => requireDesktopApi().diagnoseKiro(), {
+          pending: "正在刷新诊断...",
+          success: "诊断已刷新。",
+          afterFocus: "logs"
+        });
+      default:
+        openConsole(issue.focus);
+        return Promise.resolve();
+    }
   }
 
   async function refreshLogs(nextFilters = logFilters) {
@@ -553,6 +584,58 @@ export function App() {
       {
         pending: "正在复制脱敏诊断摘要...",
         success: "诊断摘要已复制。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function exportDiagnosticsToFile() {
+    const result = await runAction(
+      () => requireDesktopApi().exportDiagnosticsToFile(),
+      {
+        pending: "正在导出诊断文件...",
+        success: "诊断文件已导出。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as {
+      bundleDir?: string;
+      readmePath?: string;
+      summaryPath?: string;
+      jsonPath?: string;
+      requestsPath?: string;
+      manifestPath?: string;
+      text?: string;
+    };
+    if (typed.text) {
+      setDiagnosticsSummary(typed.text);
+    }
+    if (typed.bundleDir) {
+      setStatusDetail(
+        [
+          `导出目录：${typed.bundleDir}`,
+          typed.readmePath ? `说明：${typed.readmePath}` : null,
+          typed.summaryPath ? `摘要：${typed.summaryPath}` : null,
+          typed.jsonPath ? `快照：${typed.jsonPath}` : null,
+          typed.requestsPath ? `请求：${typed.requestsPath}` : null,
+          typed.manifestPath ? `清单：${typed.manifestPath}` : null
+        ].filter(Boolean).join("\n")
+      );
+    }
+  }
+
+  async function openExportBundleDir() {
+    const detail = statusDetail.split(/\r?\n/).find((line) => line.startsWith("导出目录："));
+    const bundleDir = detail?.replace(/^导出目录：/, "").trim();
+    if (!bundleDir) {
+      setStatus("还没有可打开的导出目录。");
+      return;
+    }
+    await runAction(
+      () => requireDesktopApi().openPath(bundleDir),
+      {
+        pending: "正在打开导出目录...",
+        success: "导出目录已打开。",
         afterFocus: "logs"
       }
     );
@@ -851,6 +934,7 @@ export function App() {
             <dl className="kv-grid dense">
               <div><dt>本地 endpoint</dt><dd>{state.proxyStatus.endpoint ?? `127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
               <div><dt>Kiro 安装</dt><dd>{state.kiroDetection.installPath ?? "未检测到"}</dd></div>
+              <div><dt>探测提示</dt><dd>{state.kiroDetection.detectionHint}</dd></div>
               <div><dt>最近备份</dt><dd>{state.kiroDetection.lastBackup?.backupPath ?? "暂无"}</dd></div>
             </dl>
 
@@ -951,6 +1035,27 @@ export function App() {
               <p>
                 推荐顺序：保存 Provider，测试 Provider，启动代理，启用 BYOK，运行诊断，再到右侧做一次最小模型验证。
               </p>
+              {primaryIssue ? (
+                <div className={`hero-callout ${primaryIssue.severity}`}>
+                  <div className="hero-callout-copy">
+                    <strong>{primaryIssue.title}</strong>
+                    <p>{primaryIssue.detail}</p>
+                  </div>
+                  <button className="ghost-button compact-button" onClick={() => handleReadinessAction(primaryIssue)}>
+                    {primaryIssue.action}
+                  </button>
+                </div>
+              ) : (
+                <div className="hero-callout success">
+                  <div className="hero-callout-copy">
+                    <strong>当前已具备最小使用条件</strong>
+                    <p>可以继续在右侧发送一次真实模型验证，或者直接通过顶部入口启动 Kiro。</p>
+                  </div>
+                  <button className="ghost-button compact-button" onClick={() => openConsole("playground")}>
+                    去做验证
+                  </button>
+                </div>
+              )}
             </div>
             <div className="workspace-kpis">
               <div className="kpi-card">
@@ -992,7 +1097,7 @@ export function App() {
                 <div><dt>本地 endpoint</dt><dd>{state.proxyStatus.endpoint ?? "未启动"}</dd></div>
                 <div><dt>最近测试</dt><dd>{state.lastSuccessfulProviderTest?.modelId ?? "尚未测试"}</dd></div>
                 <div><dt>最近恢复</dt><dd>{state.lastAppliedKiroBackup?.backupPath ?? "暂无"}</dd></div>
-                <div><dt>推荐下一步</dt><dd>{state.bootstrap.steps.find((step) => !step.done)?.title ?? "可以开始实际使用"}</dd></div>
+                <div><dt>推荐下一步</dt><dd>{primaryIssue?.action ?? state.bootstrap.steps.find((step) => !step.done)?.title ?? "可以开始实际使用"}</dd></div>
               </dl>
             </article>
 
@@ -1006,12 +1111,43 @@ export function App() {
               <dl className="kv-grid">
                 <div><dt>settings.json</dt><dd>{state.kiroDetection.settingsPath || "未检测"}</dd></div>
                 <div><dt>profiles</dt><dd>{state.kiroDetection.profilesDir || "未检测"}</dd></div>
+                <div><dt>已检查路径</dt><dd>{state.kiroDetection.searchedInstallPaths.length || 0}</dd></div>
                 <div><dt>localRegions</dt><dd>{state.diagnose?.localRegions.join(", ") || "暂无"}</dd></div>
                 <div><dt>unsupported</dt><dd>{state.diagnose?.unsupportedOperationsSeen.join(", ") || "无"}</dd></div>
                 <div><dt>提示</dt><dd>{state.diagnose?.hint ?? "先运行诊断"}</dd></div>
               </dl>
+              {!state.kiroDetection.installPath && state.kiroDetection.searchedInstallPaths.length > 0 ? (
+                <pre className="summary-block compact">
+                  {state.kiroDetection.searchedInstallPaths.join("\n")}
+                </pre>
+              ) : null}
             </article>
           </section>
+
+          {state.readinessIssues.length > 0 ? (
+            <section className="workspace-card">
+              <div className="card-head">
+                <div>
+                  <span className="panel-tag">Readiness</span>
+                  <h3>当前阻塞项与建议动作</h3>
+                </div>
+                <span className="tiny-meta">{state.readinessIssues.length} 项</span>
+              </div>
+              <div className="issue-list">
+                {state.readinessIssues.map((issue) => (
+                  <article key={issue.key} className={`issue-row ${issue.severity}`}>
+                    <div className="issue-copy">
+                      <strong>{issue.title}</strong>
+                      <p>{issue.detail}</p>
+                    </div>
+                    <button className="ghost-button compact-button" onClick={() => handleReadinessAction(issue)}>
+                      {issue.action}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="workbench-card">
             <div className="card-head">
@@ -1085,6 +1221,8 @@ export function App() {
               <div className="workbench-body">
                 <div className="summary-actions">
                   <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制脱敏摘要</button>
+                  <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
+                  <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
                   <button
                     className="ghost-button"
                     onClick={() =>
@@ -1176,6 +1314,8 @@ export function App() {
 
             <div className="button-stack">
               <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制诊断摘要</button>
+              <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
+              <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
               <button className="ghost-button" onClick={() => openResource("providers")}>打开 Provider 文档</button>
               <button className="ghost-button" onClick={() => openResource("streaming")}>打开 Streaming 文档</button>
             </div>

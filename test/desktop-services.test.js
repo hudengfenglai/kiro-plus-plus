@@ -171,9 +171,65 @@ test("kiro integration service detects install paths and delegates configure/dia
   const detection = await service.detectKiro();
   assert.equal(detection.installed, true);
   assert.equal(detection.installPath, "E:\\Kiro\\Kiro.exe");
+  assert.match(detection.detectionHint, /已检测到 Kiro 安装/);
+  assert.ok(detection.searchedInstallPaths.includes("E:\\Kiro\\Kiro.exe"));
 
   await service.applyRouting({ endpoint: "http://127.0.0.1:43119", agentModelId: "deepseek-v4-pro" });
   assert.equal(calls.length, 2);
   assert.equal((await service.diagnose()).localRegions[0], "us-east-1");
   assert.equal((await service.restoreLatestBackup()).backupPath, "backup.json");
+});
+
+test("kiro integration service finds user-level Kiro installs from LOCALAPPDATA", async () => {
+  const localAppData = "C:\\Users\\HU\\AppData\\Local";
+  const expectedInstallPath = "C:\\Users\\HU\\AppData\\Local\\Programs\\Kiro\\Kiro.exe";
+  const service = new KiroIntegrationService({
+    processEnv: {
+      LOCALAPPDATA: localAppData,
+      USERPROFILE: "C:\\Users\\HU",
+      ProgramFiles: "C:\\Program Files",
+      "ProgramFiles(x86)": "C:\\Program Files (x86)"
+    },
+    pathExists: async (target) => target === expectedInstallPath,
+    defaultSettingsPath: () => "settings.json",
+    defaultProfilesDir: () => "profiles",
+    defaultBackupDir: () => "backups",
+    diagnoseKiroRouting: async () => ({ localRegions: [] }),
+    restoreLatestBackup: async () => ({ backupPath: "backup.json" })
+  });
+
+  const detection = await service.detectKiro();
+  assert.equal(detection.installed, true);
+  assert.equal(detection.installPath, expectedInstallPath);
+  assert.ok(detection.searchedInstallPaths.includes(expectedInstallPath));
+  assert.match(detection.detectionHint, /已检测到 Kiro 安装/);
+});
+
+test("kiro integration service finds non-standard installs from registry values", async () => {
+  const expectedInstallPath = "D:\\Apps\\Kiro\\Kiro.exe";
+  const service = new KiroIntegrationService({
+    installCandidates: ["C:\\Program Files\\Kiro\\Kiro.exe"],
+    queryRegistry: async (key) => {
+      if (!key.endsWith("App Paths\\Kiro.exe")) {
+        return null;
+      }
+      return [
+        "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Kiro.exe",
+        "    (Default)    REG_SZ    D:\\Apps\\Kiro\\Kiro.exe",
+        "    Path    REG_SZ    D:\\Apps\\Kiro"
+      ].join("\r\n");
+    },
+    pathExists: async (target) => target === expectedInstallPath,
+    defaultSettingsPath: () => "settings.json",
+    defaultProfilesDir: () => "profiles",
+    defaultBackupDir: () => "backups",
+    diagnoseKiroRouting: async () => ({ localRegions: [] }),
+    restoreLatestBackup: async () => ({ backupPath: "backup.json" })
+  });
+
+  const detection = await service.detectKiro();
+  assert.equal(detection.installed, true);
+  assert.equal(detection.installPath, expectedInstallPath);
+  assert.ok(detection.searchedInstallPaths.includes(expectedInstallPath));
+  assert.match(detection.detectionHint, /已检测到 Kiro 安装/);
 });
