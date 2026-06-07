@@ -75,9 +75,22 @@ Recent Progress:
 - Wired the new desktop quickstart guide into the in-app documentation entry list so packaged builds can open a first-run guide directly instead of sending new users to the broader README first.
 - Promoted the quickstart guide higher in the UI by adding direct entry buttons on the home hero and diagnostics rail, reducing the chance that first-run users miss the shortest supported setup path.
 - Embedded a compact quickstart summary directly into the home hero stack and the main workspace so first-run users can see the shortest supported sequence without leaving the app surface at all.
+- Replaced the static quickstart copy with a renderer-side dynamic checklist derived from real app state, so home and workspace now point users at the current blocking step instead of repeating fixed setup text.
+- Extracted the quickstart state derivation into a shared module with direct tests, keeping the UI guidance reusable and reducing pressure on the already-large renderer entry file.
+- Upgraded quickstart actions from pure navigation into executable next-step buttons, reusing the existing provider fetch, provider test, proxy start, BYOK enable, route apply, and diagnose flows instead of sending users through extra manual clicks.
+- Added quickstart progress summarization so the home hero and workbench hero now expose completed-step counts, a visible progress bar, and a direct “continue setup” action instead of burying onboarding status inside the checklist cards alone.
+- Added a dedicated setup banner in the workbench hero so incomplete installs now read as an explicit first-run mode with a tighter call to continue setup, while completed installs flip that same surface into a “ready to use” state.
+- Promoted setup mode awareness into the global workbench top bar so the app now exposes a compact `Setup Mode` / `Ready` state and next-step action even before users read the hero content.
+- Removed the last static onboarding step block from the home view and replaced it with the same live quickstart checklist data used elsewhere, so the landing page no longer drifts away from real runtime state.
+- Taught the top-level launch entry to respect setup mode, so users who have not finished the minimum onboarding path are now routed to the next required setup action instead of hitting the Kiro launch flow prematurely.
+- Collapsed the scattered step strip and inline quickstart cards into a dedicated setup workspace surface when onboarding is still incomplete, reducing visual competition and making the workbench read more like a focused first-run path.
+- Made the right-hand validation rail setup-aware as well, so incomplete onboarding now swaps the usual Playground/diagnostics stack for a smaller setup guidance rail instead of encouraging premature validation attempts.
+- Reduced lower-workspace noise during setup mode by hiding launch/bootstrap history cards and the full workbench tab surface until the minimum onboarding path is complete, keeping the center column focused on state, routing, and blockers first.
+- Tightened the left Kiro control panel during setup mode as well, promoting proxy/BYOK/diagnose actions while delaying stop/restore-style maintenance actions until the minimum onboarding path is complete.
+- Added renderer-side availability rules for key Kiro actions so setup-mode buttons can now disable themselves with concrete reasons when proxy state, Kiro detection, BYOK state, or backup availability are not ready yet.
 
 Verification:
-- `npm test` passes with 63 tests.
+- `npm test` passes with 70 tests.
 - `npm run typecheck` succeeds.
 - `npm run desktop:build` succeeds.
 - Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.
