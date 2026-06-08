@@ -875,6 +875,7 @@ export class DesktopRuntime {
       jsonPath,
       requestsPath,
       manifestPath,
+      headline: desktopHealthHeadline,
       text: fileText
     };
     await this.saveLastExportBundle(bundle);

@@ -86,6 +86,7 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
           jsonPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\snapshot.json",
           requestsPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\recent-requests.json",
           manifestPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\manifest.json",
+          headline: "本地代理尚未运行，建议先启动代理。",
           text: "summary-2"
         }
       ],
@@ -99,6 +100,7 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
         requestsPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\recent-requests.json",
         manifestPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\manifest.json",
         zipPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z.zip",
+        headline: "当前安装包桥接不完整，建议先查看 Quickstart。",
         text: "summary"
       }
     }
@@ -108,6 +110,7 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
   assert.equal(settings.runtime.exportHistory[0].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z");
   assert.equal(settings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
   assert.equal(settings.runtime.lastExportBundle?.exportedAt, "2026-06-08T10:20:30.000Z");
+  assert.match(settings.runtime.lastExportBundle?.headline ?? "", /Quickstart/);
   assert.match(settings.runtime.lastExportBundle?.zipPath ?? "", /\.zip$/);
   assert.equal(settings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
 });

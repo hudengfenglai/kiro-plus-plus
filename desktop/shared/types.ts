@@ -73,6 +73,7 @@ export interface DiagnosticsExportBundle {
   requestsPath: string;
   manifestPath: string;
   zipPath?: string;
+  headline?: string;
   text: string;
 }
 

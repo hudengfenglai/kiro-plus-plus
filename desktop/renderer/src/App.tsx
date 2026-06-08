@@ -485,6 +485,7 @@ export function App() {
     if (!lastExportBundle) return null;
     return {
       bundleName: lastExportBundle.bundleName || basename(lastExportBundle.bundleDir),
+      headline: lastExportBundle.headline ?? "",
       zipName: basename(lastExportBundle.zipPath ?? null),
       readmeName: basename(lastExportBundle.readmePath),
       summaryName: basename(lastExportBundle.summaryPath),
@@ -2055,6 +2056,12 @@ export function App() {
                         </div>
                         <small>{formatTime(exportSummary.exportedAt)}</small>
                       </div>
+                      {exportSummary.headline ? (
+                        <div className="export-headline">
+                          <strong>首屏摘要</strong>
+                          <p>{exportSummary.headline}</p>
+                        </div>
+                      ) : null}
                       <dl className="kv-grid compact">
                         <div><dt>目录</dt><dd>{exportSummary.bundleName}</dd></div>
                         <div><dt>zip</dt><dd>{lastExportBundle?.zipPath ? exportSummary.zipName : "未导出"}</dd></div>
@@ -2227,6 +2234,12 @@ export function App() {
                       </div>
                       <small>{formatTime(exportSummary.exportedAt)}</small>
                     </div>
+                    {exportSummary.headline ? (
+                      <div className="export-headline compact">
+                        <strong>首屏摘要</strong>
+                        <p>{exportSummary.headline}</p>
+                      </div>
+                    ) : null}
                     <dl className="kv-grid compact">
                       <div><dt>zip</dt><dd>{lastExportBundle?.zipPath ? exportSummary.zipName : "未导出"}</dd></div>
                       <div><dt>说明</dt><dd>{exportSummary.readmeName}</dd></div>

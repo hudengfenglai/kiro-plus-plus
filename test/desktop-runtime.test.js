@@ -528,6 +528,7 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   const result = await runtime.exportDiagnosticsToFile();
   assert.equal(result.exportedAt, "2026-06-07T12:34:56.789Z");
   assert.equal(result.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
+  assert.match(result.headline ?? "", /建议先查看 Quickstart/);
   assert.match(result.bundleDir, /kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z$/);
   assert.match(result.readmePath, /README\.txt$/);
   assert.match(result.summaryPath, /summary\.txt$/);
@@ -577,6 +578,7 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   const state = await runtime.getState();
   assert.equal(state.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
   assert.equal(state.lastExportBundle?.exportedAt, "2026-06-07T12:34:56.789Z");
+  assert.match(state.lastExportBundle?.headline ?? "", /建议先查看 Quickstart/);
   assert.equal(state.lastExportBundle?.summaryPath, result.summaryPath);
   const reloadedSettings = await runtime.settingsStore.load();
   assert.equal(reloadedSettings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");

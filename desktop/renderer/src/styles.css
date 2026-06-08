@@ -1168,6 +1168,28 @@ pre {
   gap: 8px;
 }
 
+.export-headline {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+}
+
+.export-headline strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.export-headline p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.export-headline.compact {
+  margin: 8px 0 12px;
+}
+
 .export-history {
   display: grid;
   gap: 8px;

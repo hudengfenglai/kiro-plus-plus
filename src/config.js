@@ -175,6 +175,7 @@ function normalizeDiagnosticsExportBundle(value = DEFAULT_LAST_EXPORT_BUNDLE) {
     requestsPath: String(value.requestsPath),
     manifestPath: String(value.manifestPath),
     zipPath: value.zipPath ? String(value.zipPath) : undefined,
+    headline: value.headline ? String(value.headline) : undefined,
     text: String(value.text ?? "")
   };
 }
