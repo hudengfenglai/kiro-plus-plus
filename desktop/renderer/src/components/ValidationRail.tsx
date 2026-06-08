@@ -1,25 +1,12 @@
 import type {
   DiagnosticsExportBundle,
   DiagnosticsLogSnapshot,
-  PlaygroundResult,
   ProviderProfile,
   RequestLogEntry
 } from "../../../shared/types";
 import type { QuickstartItem } from "../../../shared/quickstart";
 import { describeSupportBundleAvailability } from "../../../shared/support-bundle-status";
-
-type ExportSummary = {
-  bundleName: string;
-  headline: string;
-  recommendedAction: DiagnosticsExportBundle["recommendedAction"] | null;
-  zipName: string;
-  readmeName: string;
-  summaryName: string;
-  snapshotName: string;
-  manifestName: string;
-  requestsName: string;
-  exportedAt: string | null;
-};
+import type { ExportSummary, PlaygroundState } from "../app-types";
 
 type Props = {
   quickstartSummaryShowSetupRail: boolean;
@@ -39,7 +26,7 @@ type Props = {
   providers: ProviderProfile[];
   providerForPlayground: ProviderProfile | null;
   handlePlaygroundSend: () => void;
-  playgroundResult: (PlaygroundResult & { requestedAt: string }) | null;
+  playgroundResult: PlaygroundState | null;
   formatTime: (value?: null | string) => string;
   viewingHistoricalBundle: boolean;
   selectLatestExportBundle: () => void;

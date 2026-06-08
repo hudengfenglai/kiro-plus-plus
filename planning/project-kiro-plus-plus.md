@@ -35,6 +35,8 @@ Acceptance:
 - Renderer build and existing automated tests pass.
 
 Recent Progress:
+- Moved the remaining renderer-local derived workbench state out of `desktop/renderer/src/App.tsx` into `desktop/renderer/src/app-derived-state.ts`, so the root renderer now delegates historical-bundle/export/playground/provider-draft view-model calculations through a dedicated pure derivation module instead of mixing them into page wiring.
+- Moved `ConsoleWorkbench` page-prop assembly into `desktop/renderer/src/app-console-props.ts`, so `App.tsx` now delegates grouped `header/leftRail/center/rightRail` wiring through a dedicated builder instead of inlining the full three-column object tree.
 - Unified the workbench recommendation/tab naming on `status` across runtime, renderer, and preview assets.
 - Removed the obsolete `desktop/main/preload.js` after moving packaged Electron bridging to `preload.mjs`.
 - Kept the renderer-side desktop bridge guard in place to fail with an actionable message instead of raw `undefined` property errors.
@@ -137,6 +139,11 @@ Recent Progress:
 - Moved shell-level workbench actions such as `openConsole`, readiness handling, desktop-health handling, log refresh, doc opening, and auto-apply toggling into `desktop/renderer/src/app-workbench-actions.ts`, leaving `App.tsx` with fewer UI-agnostic control flows.
 - Moved quickstart/setup/launch/history flow sequencing into `desktop/renderer/src/app-flow-actions.ts`, so `App.tsx` now delegates almost all cross-panel orchestration and is much closer to a pure state-and-view composition layer.
 - Centralized renderer-local shared unions and action helper types into `desktop/renderer/src/app-types.ts`, then reconnected `App.tsx`, action modules, and selected components to reduce duplicated local type drift.
+- Continued the renderer type cleanup by moving repeated UI-only shapes such as `ToneState`, `LogFilters`, `ExportSummary`, `ConsoleFocus`, and `WorkbenchTab` consumers onto `app-types.ts`, reducing per-component drift across `app-utils.ts`, `WorkspaceHero.tsx`, `WorkbenchPanel.tsx`, `ValidationRail.tsx`, and `DiagnosticsArtifactsPanel.tsx`.
+- Tightened renderer type safety further by promoting `PlaygroundState` and `ReadinessIssue` into shared renderer types and removing the remaining `any` from `WorkbenchPanel`, reducing hidden coupling between `App.tsx`, provider actions, and the three-column workbench components.
+- Moved renderer shell concerns such as desktop bridge access, clipboard fallback, home resource metadata, proxy state labels, and action-entry creation into `desktop/renderer/src/app-shell.ts`, cutting `App.tsx` down further and keeping the root component closer to pure state/view assembly.
+- Pulled the remaining repeated proxy/Kiro command wrappers out of `App.tsx` into `desktop/renderer/src/app-runtime-actions.ts`, so the left control rail and center diagnostics refresh now reuse one runtime action surface instead of repeating inline `runAction(() => requireDesktopApi()....)` closures.
+- Extracted the full console-page composition into `desktop/renderer/src/components/ConsoleWorkbench.tsx`, moving the three-column workbench assembly out of `App.tsx` so the root renderer entry is now much closer to a shell that wires state, derived view data, and action surfaces together.
 
 Verification:
 - `npm test` passes with 125 tests.

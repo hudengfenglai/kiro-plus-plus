@@ -1,11 +1,9 @@
 import type { DesktopBridgeStatus } from "../../../shared/bridge-status";
 import type { QuickstartSummary } from "../../../shared/quickstart";
 import type { AppMeta, DiagnosticsExportBundle } from "../../../shared/types";
-import type { ViewKey } from "../app-types";
+import type { ExportSummary, ViewKey } from "../app-types";
 
-type ExportSummary = {
-  bundleName: string;
-};
+type HeaderExportSummary = Pick<ExportSummary, "bundleName">;
 
 type Props = {
   status: string;
@@ -21,7 +19,7 @@ type Props = {
   handleLaunchEntry: () => void | Promise<unknown>;
   viewingHistoricalBundle: boolean;
   lastExportBundle: DiagnosticsExportBundle | null;
-  exportSummary: ExportSummary | null;
+  exportSummary: HeaderExportSummary | null;
   basename: (value?: null | string) => string;
   formatTime: (value?: null | string) => string;
   selectLatestExportBundle: () => void;

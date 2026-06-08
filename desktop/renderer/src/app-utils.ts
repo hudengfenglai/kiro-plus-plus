@@ -5,9 +5,7 @@ import type {
   ProviderModel,
   RequestLogEntry
 } from "../../shared/types";
-
-type ConsoleFocus = "status" | "providers" | "kiro" | "logs" | "playground";
-type WorkbenchTab = "logs" | "output" | "diagnostics";
+import type { ConsoleFocus, WorkbenchTab } from "./app-types";
 
 export function describeError(error: unknown) {
   if (error instanceof Error) {

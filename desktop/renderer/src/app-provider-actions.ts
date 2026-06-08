@@ -7,6 +7,7 @@ import type { PlaygroundResult, ProviderProfile } from "../../shared/types";
 import type {
   ConsoleFocus,
   PendingProviderReplaceAction,
+  PlaygroundState,
   RunAction
 } from "./app-types";
 import { buildModelsText, nowIso } from "./app-utils";
@@ -30,7 +31,7 @@ type CreateProviderActionsArgs = {
   setApiKey: (value: string) => void;
   setPlaygroundProviderId: (value: string) => void;
   setPlaygroundModelId: (value: string) => void;
-  setPlaygroundResult: (value: (PlaygroundResult & { requestedAt: string }) | null) => void;
+  setPlaygroundResult: (value: PlaygroundState | null) => void;
   setPendingProviderReplaceAction: (value: PendingProviderReplaceAction) => void;
   setFocus: (value: ConsoleFocus) => void;
   pushOutput: (title: string, detail: string, tone: "info" | "success" | "error") => void;

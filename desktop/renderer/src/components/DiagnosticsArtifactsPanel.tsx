@@ -8,19 +8,7 @@ import {
   formatMissingPathLabels
 } from "../../../shared/support-bundle-status";
 import { describeWorkbenchSnapshotAvailability } from "../../../shared/workbench-snapshot-status";
-
-type ExportSummary = {
-  bundleName: string;
-  headline: string;
-  recommendedAction: DiagnosticsExportBundle["recommendedAction"] | null;
-  zipName: string;
-  readmeName: string;
-  summaryName: string;
-  snapshotName: string;
-  manifestName: string;
-  requestsName: string;
-  exportedAt: string | null;
-};
+import type { ExportSummary } from "../app-types";
 
 type Props = {
   diagnosticsSummarySource: AppState["diagnosticsSummarySource"];

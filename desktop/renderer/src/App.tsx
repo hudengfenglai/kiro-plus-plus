@@ -7,27 +7,21 @@ import {
 import {
   buildKiroActionAvailability,
   buildProviderActionAvailability,
-  buildProviderDraftStatus,
   buildQuickstartChecklist,
-  buildSetupWorkspaceSummary,
-  shouldPromptBeforeReplacingProviderDraft,
-  summarizeQuickstartChecklist,
-  type QuickstartItem
+  summarizeQuickstartChecklist
 } from "../../shared/quickstart";
 import { inspectDesktopBridge } from "../../shared/bridge-status";
 import { buildDesktopHealthSummary } from "../../shared/desktop-health";
-import {
-  describeSupportBundleAvailability
-} from "../../shared/support-bundle-status";
-import { describeWorkbenchSnapshotAvailability } from "../../shared/workbench-snapshot-status";
 import { createDiagnosticsActions } from "./app-diagnostics-actions";
+import { buildAppDerivedState } from "./app-derived-state";
 import { createFlowActions } from "./app-flow-actions";
 import { createProviderActions } from "./app-provider-actions";
+import { createRuntimeActions } from "./app-runtime-actions";
 import type {
   ActionEntry,
   ConsoleFocus,
   PendingProviderReplaceAction,
-  ResourceKey,
+  PlaygroundState,
   ThemeKey,
   ViewKey,
   WorkbenchTab
@@ -39,38 +33,25 @@ import {
   collectUnavailableReasons,
   deriveFocusMeta,
   describeBootstrapStatus,
-  describeBootstrapStep,
   describeError,
   describeLaunchStatus,
-  describeLaunchStep,
-  formatTime,
-  nowIso,
-  parseModelsText,
-  pickRecommendedFocus,
-  summarizeLog
+  pickRecommendedFocus
 } from "./app-utils";
-import { ControlRail } from "./components/ControlRail";
-import { ConsoleHeader } from "./components/ConsoleHeader";
-import { DiagnosticsArtifactsPanel } from "./components/DiagnosticsArtifactsPanel";
+import {
+  makeActionEntry,
+  proxyStateLabels,
+  requireDesktopApi,
+  resourceLinks,
+  writeClipboardText
+} from "./app-shell";
+import { buildConsoleWorkbenchProps, ConsoleWorkbench } from "./app-console-props";
 import { HomeView } from "./components/HomeView";
-import { SetupWorkspace } from "./components/SetupWorkspace";
-import { StatusOverviewPanel } from "./components/StatusOverviewPanel";
-import { ValidationRail } from "./components/ValidationRail";
-import { WorkbenchPanel } from "./components/WorkbenchPanel";
-import { WorkspaceHero } from "./components/WorkspaceHero";
 import type {
   AppMeta,
   AppState,
   DiagnosticsExportBundle,
-  LaunchAttempt,
-  PlaygroundResult,
-  ProviderModel,
-  ProviderProfile,
-  RequestLogEntry
+  ProviderProfile
 } from "../../shared/types";
-
-type PlaygroundState = PlaygroundResult & { requestedAt: string };
-
 const emptyState: AppState = {
   settings: {
     selectedProviderId: "deepseek",
@@ -135,82 +116,6 @@ const emptyState: AppState = {
   lastBootstrapAttempt: null
 };
 
-const proxyStateLabels: Record<AppState["proxyStatus"]["state"], string> = {
-  stopped: "未启动",
-  starting: "启动中",
-  running: "运行中",
-  error: "异常"
-};
-
-const resourceLinks: Array<{ key: ResourceKey; title: string; body: string }> = [
-  {
-    key: "quickstart",
-    title: "快速开始",
-    body: "安装版的最短上手路径、启动预热和支持包说明。"
-  },
-  {
-    key: "readme",
-    title: "README",
-    body: "安装、运行方式、支持边界和最短接入路径。"
-  },
-  {
-    key: "providers",
-    title: "Provider 文档",
-    body: "国内 Provider 的 Base URL、模型名和示例。"
-  },
-  {
-    key: "streaming",
-    title: "Streaming / Kiro 说明",
-    body: "Kiro 兼容 event-stream 与协议映射记录。"
-  },
-  {
-    key: "plan",
-    title: "项目计划",
-    body: "当前 backlog、阶段目标和公开发布准备记录。"
-  }
-];
-
-function requireDesktopApi() {
-  if (window.kiroPlusApp) {
-    return new Proxy(window.kiroPlusApp, {
-      get(target, prop, receiver) {
-        const value = Reflect.get(target, prop, receiver);
-        if (typeof value === "function") {
-          return value.bind(target);
-        }
-        if (value !== undefined) {
-          return value;
-        }
-        throw new Error(`当前安装包缺少桌面桥接方法：${String(prop)}。请重新安装最新版 Kiro++ Console。`);
-      }
-    });
-  }
-  throw new Error("桌面桥接不可用。请安装最新版 Kiro++ 后重新启动应用。");
-}
-
-async function writeClipboardText(text: string) {
-  const api = window.kiroPlusApp;
-  if (api?.copyText) {
-    await api.copyText(text);
-    return;
-  }
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  throw new Error("当前环境不支持复制到剪贴板。请升级最新版 Kiro++ Console。");
-}
-
-function makeActionEntry(title: string, detail: string, tone: ActionEntry["tone"]): ActionEntry {
-  return {
-    id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
-    title,
-    detail,
-    tone,
-    at: nowIso()
-  };
-}
-
 export function App() {
   const [theme, setTheme] = useState<ThemeKey>("dark");
   const [view, setView] = useState<ViewKey>("home");
@@ -265,38 +170,6 @@ export function App() {
     [providerDraft, state.settings.providers, state.settings.selectedProviderId]
   );
 
-  const selectedProviderLabel = selectedProvider?.label ?? "未配置";
-  const primaryIssue = state.readinessIssues[0] ?? null;
-  const latestLiveExportBundle = state.settings.runtime.lastExportBundle ?? null;
-  const latestWorkbenchExport = state.settings.runtime.lastWorkbenchExport ?? null;
-  const workbenchExportHistory = state.settings.runtime.workbenchExportHistory ?? [];
-
-  const viewingHistoricalBundle = Boolean(
-    lastExportBundle
-    && latestLiveExportBundle
-    && lastExportBundle.bundleName !== latestLiveExportBundle.bundleName
-  );
-  const recentLogsFromHistoricalBundle = state.recentLogsSource.kind === "bundle";
-
-  const latestFailure = useMemo(
-    () => {
-      if (viewingHistoricalBundle && lastExportBundle?.latestFailure) {
-        return lastExportBundle.latestFailure;
-      }
-      return [...logRows].find((entry) => entry.status >= 400) ?? null;
-    },
-    [lastExportBundle, logRows, viewingHistoricalBundle]
-  );
-
-  const latestSuccess = useMemo(
-    () => {
-      if (viewingHistoricalBundle && lastExportBundle?.latestSuccess) {
-        return lastExportBundle.latestSuccess;
-      }
-      return [...logRows].find((entry) => entry.status >= 200 && entry.status < 400) ?? null;
-    },
-    [lastExportBundle, logRows, viewingHistoricalBundle]
-  );
   const launchStatus = useMemo(
     () => describeLaunchStatus(state.lastLaunchAttempt),
     [state.lastLaunchAttempt]
@@ -329,78 +202,32 @@ export function App() {
     () => collectUnavailableReasons(kiroActionAvailability),
     [kiroActionAvailability]
   );
-  const setupWorkspaceSummary = useMemo(
-    () => buildSetupWorkspaceSummary(state),
-    [state]
-  );
-
   const outputEntries = useMemo(
     () => [...actionEntries].sort((a, b) => (a.at < b.at ? 1 : -1)),
     [actionEntries]
   );
   const outputSessionStartedAt = outputEntries.at(-1)?.at ?? null;
-
-  const exportSummary = useMemo(() => {
-    if (!lastExportBundle) return null;
-    return {
-      bundleName: lastExportBundle.bundleName || basename(lastExportBundle.bundleDir),
-      headline: lastExportBundle.headline ?? "",
-      recommendedAction: lastExportBundle.recommendedAction ?? null,
-      zipName: basename(lastExportBundle.zipPath ?? null),
-      readmeName: basename(lastExportBundle.readmePath),
-      summaryName: basename(lastExportBundle.summaryPath),
-      snapshotName: basename(lastExportBundle.jsonPath),
-      manifestName: basename(lastExportBundle.manifestPath),
-      requestsName: basename(lastExportBundle.requestsPath),
-      exportedAt: lastExportBundle.exportedAt ?? null
-    };
-  }, [lastExportBundle]);
-  const exportAvailability = useMemo(
-    () => describeSupportBundleAvailability(lastExportBundle),
-    [lastExportBundle]
-  );
-
-  const exportHistory = useMemo(
-    () => state.exportHistory ?? [],
-    [state.exportHistory]
-  );
-  const latestWorkbenchExportAvailability = useMemo(
-    () => describeWorkbenchSnapshotAvailability(latestWorkbenchExport),
-    [latestWorkbenchExport]
-  );
-  const playgroundLockedByHistory = viewingHistoricalBundle;
-
-  const primaryWorkbenchActionLabel = viewingHistoricalBundle
-    ? "回到实时后继续"
-    : (quickstartSummary.nextItem?.actionLabel ?? "去做验证");
-  const secondaryWorkbenchActionLabel = viewingHistoricalBundle
-    ? "回到实时工作区"
-    : (quickstartSummary.isComplete ? "打开工作区" : "继续设置");
-  const launchWorkbenchActionLabel = viewingHistoricalBundle
-    ? "回到实时后启动 Kiro"
-    : quickstartSummary.launchActionLabel;
-
-  const selectedProviderModels = useMemo(
-    () => parseModelsText(modelsText, selectedProvider?.models ?? []),
-    [modelsText, selectedProvider]
-  );
-  const providerDraftStatus = useMemo(() => {
-    const savedProfile = state.settings.providers.find((provider) => provider.id === selectedProvider?.id)
-      ?? state.settings.providers[0]
-      ?? null;
-    return buildProviderDraftStatus({
-      savedProfile,
-      draftProfile: selectedProvider,
-      draftModels: selectedProviderModels,
-      hasDraftApiKey: Boolean(apiKey.trim())
-    });
-  }, [apiKey, selectedProvider, selectedProviderModels, state.settings.providers]);
-
-  const providerForPlayground = useMemo(
-    () => state.settings.providers.find((provider) => provider.id === playgroundProviderId)
-      ?? state.settings.providers[0]
-      ?? null,
-    [playgroundProviderId, state.settings.providers]
+  const derived = useMemo(
+    () => buildAppDerivedState({
+      state,
+      selectedProvider,
+      lastExportBundle,
+      logRows,
+      apiKey,
+      modelsText,
+      playgroundProviderId,
+      quickstartSummary
+    }),
+    [
+      apiKey,
+      lastExportBundle,
+      logRows,
+      modelsText,
+      playgroundProviderId,
+      quickstartSummary,
+      selectedProvider,
+      state
+    ]
   );
 
   async function refresh(nextFocus?: ConsoleFocus) {
@@ -549,21 +376,21 @@ export function App() {
     pushOutput,
     outputEntries,
     outputSessionStartedAt,
-    viewingHistoricalBundle,
+    viewingHistoricalBundle: derived.viewingHistoricalBundle,
     lastExportBundle,
-    exportSummary,
-    exportHistory,
-    latestFailure,
-    latestSuccess,
-    selectedProviderLabel,
+    exportSummary: derived.exportSummary,
+    exportHistory: derived.exportHistory,
+    latestFailure: derived.latestFailure,
+    latestSuccess: derived.latestSuccess,
+    selectedProviderLabel: derived.selectedProviderLabel,
     proxyEndpoint: state.proxyStatus.endpoint,
     proxyStateLabel: proxyStateLabels[state.proxyStatus.state],
     isByokEnabled: state.settings.isByokEnabled,
     diagnosticsSummarySource: state.diagnosticsSummarySource,
     diagnosticsSummary: state.diagnosticsSummary,
     recentLogsSource: state.recentLogsSource,
-    latestWorkbenchExport,
-    workbenchExportHistory,
+    latestWorkbenchExport: derived.latestWorkbenchExport,
+    workbenchExportHistory: derived.workbenchExportHistory,
     setStatus,
     setStatusDetail,
     setState,
@@ -613,12 +440,12 @@ export function App() {
     presetId,
     stateProviders: state.settings.providers,
     selectedProvider,
-    selectedProviderModels,
-    providerDraftStatus,
+    selectedProviderModels: derived.selectedProviderModels,
+    providerDraftStatus: derived.providerDraftStatus,
     apiKey,
     playgroundPrompt,
-    playgroundLockedByHistory,
-    providerForPlayground,
+    playgroundLockedByHistory: derived.playgroundLockedByHistory,
+    providerForPlayground: derived.providerForPlayground,
     playgroundModelId,
     setProviderDraft,
     setPresetId,
@@ -645,6 +472,23 @@ export function App() {
     handleTestProvider,
     handlePlaygroundSend
   } = providerActions;
+
+  const runtimeActions = createRuntimeActions({
+    runAction,
+    requireDesktopApi,
+    isByokEnabled: state.settings.isByokEnabled
+  });
+
+  const {
+    startProxy,
+    restartProxy,
+    applyRouting,
+    toggleByok,
+    diagnoseKiro,
+    refreshDiagnose,
+    stopProxy,
+    restoreKiro
+  } = runtimeActions;
 
   const flowActions = createFlowActions({
     runAction,
@@ -685,7 +529,7 @@ export function App() {
       proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
       proxyStateClass={state.proxyStatus.state}
       isByokEnabled={state.settings.isByokEnabled}
-      selectedProviderLabel={selectedProviderLabel}
+      selectedProviderLabel={derived.selectedProviderLabel}
       selectedDefaultModel={selectedProvider?.defaultModel ?? "未配置"}
       proxyEndpoint={state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}
       bridgeStatus={bridgeStatus}
@@ -697,259 +541,123 @@ export function App() {
     />
   );
 
-  const consoleView = (
-    <div className="workbench-shell">
-      <ConsoleHeader
-        status={status}
-        appMeta={appMeta}
-        quickstartSummary={quickstartSummary}
-        bridgeStatus={bridgeStatus}
-        primaryWorkbenchActionLabel={primaryWorkbenchActionLabel}
-        launchWorkbenchActionLabel={launchWorkbenchActionLabel}
-        handlePrimaryWorkbenchAction={handlePrimaryWorkbenchAction}
-        toggleTheme={toggleTheme}
-        theme={theme}
-        setView={setView}
-        handleLaunchEntry={handleLaunchEntry}
-        viewingHistoricalBundle={viewingHistoricalBundle}
-        lastExportBundle={lastExportBundle}
-        exportSummary={exportSummary ? { bundleName: exportSummary.bundleName } : null}
-        basename={basename}
-        formatTime={formatTime}
-        selectLatestExportBundle={selectLatestExportBundle}
-        openExportArtifact={openExportArtifact}
-        copySupportSnapshot={copySupportSnapshot}
-      />
+  const consoleWorkbenchProps = buildConsoleWorkbenchProps({
+    status,
+    statusDetail,
+    appMeta,
+    state,
+    theme,
+    focus,
+    workbenchTab,
+    bridgeStatus,
+    desktopHealth,
+    quickstartSummary,
+    quickstartChecklist,
+    primaryWorkbenchActionLabel: derived.primaryWorkbenchActionLabel,
+    secondaryWorkbenchActionLabel: derived.secondaryWorkbenchActionLabel,
+    launchWorkbenchActionLabel: derived.launchWorkbenchActionLabel,
+    proxyStateLabel: proxyStateLabels[state.proxyStatus.state],
+    selectedProvider,
+    selectedProviderLabel: derived.selectedProviderLabel,
+    selectedProviderModels: derived.selectedProviderModels,
+    providerOptions,
+    presetId,
+    apiKey,
+    modelsText,
+    providerDraftStatus: derived.providerDraftStatus,
+    providerActionAvailability,
+    providerActionHints,
+    kiroActionAvailability,
+    kiroActionHints,
+    primaryIssue: derived.primaryIssue,
+    viewingHistoricalBundle: derived.viewingHistoricalBundle,
+    recentLogsFromHistoricalBundle: derived.recentLogsFromHistoricalBundle,
+    playgroundLockedByHistory: derived.playgroundLockedByHistory,
+    playgroundProviderId,
+    playgroundModelId,
+    playgroundPrompt,
+    providerForPlayground: derived.providerForPlayground,
+    playgroundResult,
+    logFilters,
+    logRows,
+    outputEntries,
+    outputSessionStartedAt,
+    exportSummary: derived.exportSummary,
+    exportHistory: derived.exportHistory,
+    lastExportBundle,
+    latestWorkbenchExport: derived.latestWorkbenchExport,
+    workbenchExportHistory: derived.workbenchExportHistory,
+    latestFailure: derived.latestFailure,
+    latestSuccess: derived.latestSuccess,
+    launchStatus,
+    bootstrapStatus,
+    toggleTheme,
+    setView,
+    setPresetId,
+    setApiKey,
+    setModelsText,
+    setWorkbenchTab,
+    setLogFilters,
+    setPlaygroundProviderId,
+    setPlaygroundModelId,
+    setPlaygroundPrompt,
+    openConsole,
+    openResource,
+    handlePrimaryWorkbenchAction,
+    handleSecondaryWorkbenchAction,
+    handleLaunchEntry,
+    handleReadinessAction,
+    handleQuickstartAction,
+    handleSetupSummaryAction,
+    applyPresetToDraft,
+    requestReplaceProviderDraft,
+    updateProviderDraft,
+    handleFetchModels,
+    handleTestProvider,
+    handleSaveProvider,
+    handleToggleAutoApplyOnLaunch,
+    startProxy,
+    restartProxy,
+    applyRouting,
+    toggleByok,
+    diagnoseKiro,
+    stopProxy,
+    restoreKiro,
+    refreshLogs,
+    openExportArtifact,
+    copyOutputTimeline,
+    clearOutputEntries,
+    copyWorkbenchSnapshot,
+    exportWorkbenchSnapshot,
+    openLatestWorkbenchSnapshot,
+    copyDiagnosticsSummary,
+    exportDiagnosticsToFile,
+    exportDiagnosticsZip,
+    openExportBundleDir,
+    openExportZip,
+    clearMissingDiagnosticsHistory,
+    clearExportHistory,
+    refreshDiagnose,
+    copyExportHeadline,
+    runRecommendedAction,
+    copyRecommendedAction,
+    selectExportBundle,
+    deleteExportBundle,
+    writeSnapshotPath,
+    clearMissingWorkbenchExportHistory,
+    clearWorkbenchExportHistory,
+    openWorkbenchSnapshot,
+    deleteWorkbenchExport,
+    handleResumeLivePlayground,
+    handlePlaygroundSend,
+    selectLatestExportBundle,
+    copySupportSnapshot,
+    handleDiagnosticLogAction,
+    copyLogSummary,
+    basename
+  });
 
-      <main className="workbench-grid">
-        <ControlRail
-          focus={focus}
-          selectedProvider={selectedProvider}
-          selectedProviderModels={selectedProviderModels}
-          providerOptions={providerOptions}
-          presetId={presetId}
-          setPresetId={setPresetId}
-          applyPresetToDraft={applyPresetToDraft}
-          requestReplaceProviderDraft={requestReplaceProviderDraft}
-          updateProviderDraft={updateProviderDraft}
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          modelsText={modelsText}
-          setModelsText={setModelsText}
-          providerDraftStatus={providerDraftStatus}
-          providerActionAvailability={providerActionAvailability}
-          providerActionHints={providerActionHints}
-          handleFetchModels={handleFetchModels}
-          handleTestProvider={handleTestProvider}
-          handleSaveProvider={handleSaveProvider}
-          state={state}
-          proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
-          quickstartSummary={quickstartSummary}
-          kiroActionAvailability={kiroActionAvailability}
-          kiroActionHints={kiroActionHints}
-          handleToggleAutoApplyOnLaunch={handleToggleAutoApplyOnLaunch}
-          startProxy={() =>
-            runAction(() => requireDesktopApi().startProxy(), {
-              pending: "正在启动本地代理...",
-              success: "代理已启动。",
-              afterFocus: "kiro"
-            })
-          }
-          restartProxy={() =>
-            runAction(() => requireDesktopApi().restartProxy(), {
-              pending: "正在重启代理...",
-              success: "代理已重启。",
-              afterFocus: "kiro"
-            })
-          }
-          applyRouting={() =>
-            runAction(() => requireDesktopApi().applyRouting(), {
-              pending: "正在应用 Kiro 配置...",
-              success: "Kiro 路由已应用。",
-              afterFocus: "kiro"
-            })
-          }
-          toggleByok={() =>
-            runAction(() => requireDesktopApi().setByokEnabled(!state.settings.isByokEnabled), {
-              pending: state.settings.isByokEnabled ? "正在关闭 BYOK..." : "正在启用 BYOK...",
-              success: state.settings.isByokEnabled ? "BYOK 已关闭。" : "BYOK 已启用。",
-              afterFocus: "kiro"
-            })
-          }
-          runDiagnose={() =>
-            runAction(() => requireDesktopApi().diagnoseKiro(), {
-              pending: "正在运行诊断...",
-              success: "诊断已刷新。",
-              afterFocus: "logs"
-            })
-          }
-          stopProxy={() =>
-            runAction(() => requireDesktopApi().stopProxy(), {
-              pending: "正在停止代理...",
-              success: "代理已停止。",
-              afterFocus: "kiro"
-            })
-          }
-          restoreKiro={() =>
-            runAction(() => requireDesktopApi().restoreKiro(), {
-              pending: "正在恢复最近备份...",
-              success: "最近备份已恢复。",
-              afterFocus: "kiro"
-            })
-          }
-        />
-
-        <section className={`workspace ${focus === "status" || focus === "logs" ? "focused" : ""}`}>
-          <WorkspaceHero
-            quickstartSummary={quickstartSummary}
-            primaryWorkbenchActionLabel={primaryWorkbenchActionLabel}
-            secondaryWorkbenchActionLabel={secondaryWorkbenchActionLabel}
-            handlePrimaryWorkbenchAction={handlePrimaryWorkbenchAction}
-            handleSecondaryWorkbenchAction={handleSecondaryWorkbenchAction}
-            primaryIssue={primaryIssue}
-            handleReadinessAction={handleReadinessAction}
-            openConsole={openConsole}
-            selectedProviderLabel={selectedProviderLabel}
-            selectedDefaultModel={selectedProvider?.defaultModel ?? "未配置"}
-            proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
-            bridgeStatus={bridgeStatus}
-            appMeta={appMeta}
-            desktopHealth={desktopHealth}
-          />
-
-          <SetupWorkspace
-            quickstartSummary={quickstartSummary}
-            setupWorkspaceSummary={setupWorkspaceSummary}
-            quickstartChecklist={quickstartChecklist}
-            bootstrapSteps={state.bootstrap.steps}
-            openQuickstart={() => openResource("quickstart")}
-            handleQuickstartAction={handleQuickstartAction}
-            handleSetupSummaryAction={handleSetupSummaryAction}
-          />
-
-          <StatusOverviewPanel
-            state={state}
-            proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
-            nextRecommendedAction={primaryIssue?.action ?? state.bootstrap.steps.find((step) => !step.done)?.title ?? "可以开始实际使用"}
-          />
-
-          <WorkbenchPanel
-            quickstartShowSetupWorkspace={quickstartSummary.showSetupWorkspace}
-            launchStatus={launchStatus}
-            bootstrapStatus={bootstrapStatus}
-            lastLaunchAttempt={state.lastLaunchAttempt}
-            lastBootstrapAttempt={state.lastBootstrapAttempt}
-            formatTime={formatTime}
-            describeLaunchStep={describeLaunchStep}
-            describeBootstrapStep={describeBootstrapStep}
-            readinessIssues={state.readinessIssues}
-            handleReadinessAction={handleReadinessAction}
-            workbenchTab={workbenchTab}
-            setWorkbenchTab={setWorkbenchTab}
-            viewingHistoricalBundle={viewingHistoricalBundle}
-            selectLatestExportBundle={selectLatestExportBundle}
-            copySupportSnapshot={copySupportSnapshot}
-            recentLogsFromHistoricalBundle={recentLogsFromHistoricalBundle}
-            recentLogsSourceBundleName={state.recentLogsSource.bundleName}
-            lastExportBundle={lastExportBundle}
-            logFilters={logFilters}
-            setLogFilters={setLogFilters}
-            refreshLogs={refreshLogs}
-            openExportArtifact={openExportArtifact}
-            logRows={logRows}
-            outputEntries={outputEntries}
-            outputSessionStartedAt={outputSessionStartedAt}
-            copyOutputTimeline={copyOutputTimeline}
-            clearOutputEntries={clearOutputEntries}
-            diagnosticsSummarySource={state.diagnosticsSummarySource}
-            diagnosticsSummary={state.diagnosticsSummary}
-            exportSummary={exportSummary}
-            exportHistory={exportHistory}
-            latestWorkbenchExport={latestWorkbenchExport}
-            workbenchExportHistory={workbenchExportHistory}
-            statusDetail={statusDetail}
-            basename={basename}
-            copyWorkbenchSnapshot={copyWorkbenchSnapshot}
-            exportWorkbenchSnapshot={exportWorkbenchSnapshot}
-            openLatestWorkbenchSnapshot={openLatestWorkbenchSnapshot}
-            copyDiagnosticsSummary={copyDiagnosticsSummary}
-            exportDiagnosticsToFile={exportDiagnosticsToFile}
-            exportDiagnosticsZip={exportDiagnosticsZip}
-            openExportBundleDir={openExportBundleDir}
-            openExportZip={openExportZip}
-            clearMissingDiagnosticsHistory={clearMissingDiagnosticsHistory}
-            clearExportHistory={clearExportHistory}
-            refreshDiagnose={() =>
-              runAction(() => requireDesktopApi().diagnoseKiro(), {
-                pending: "正在刷新诊断...",
-                success: "诊断已刷新。",
-                afterFocus: "logs"
-              })
-            }
-            copyExportHeadline={copyExportHeadline}
-            runRecommendedAction={runRecommendedAction}
-            copyRecommendedAction={copyRecommendedAction}
-            selectExportBundle={selectExportBundle}
-            deleteExportBundle={deleteExportBundle}
-            writeSnapshotPath={writeSnapshotPath}
-            clearMissingWorkbenchExportHistory={clearMissingWorkbenchExportHistory}
-            clearWorkbenchExportHistory={clearWorkbenchExportHistory}
-            openWorkbenchSnapshot={openWorkbenchSnapshot}
-            deleteWorkbenchExport={deleteWorkbenchExport}
-          />
-        </section>
-
-        <aside className={`rail right ${focus === "playground" || focus === "logs" ? "focused" : ""}`}>
-          <ValidationRail
-            quickstartSummaryShowSetupRail={quickstartSummary.showSetupRail}
-            quickstartChecklist={quickstartChecklist}
-            handleQuickstartAction={handleQuickstartAction}
-            openQuickstart={() => openResource("quickstart")}
-            openProvidersDoc={() => openResource("providers")}
-            playgroundLockedByHistory={playgroundLockedByHistory}
-            handleResumeLivePlayground={handleResumeLivePlayground}
-            openHistoricalRequests={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}
-            playgroundProviderId={playgroundProviderId}
-            setPlaygroundProviderId={setPlaygroundProviderId}
-            playgroundModelId={playgroundModelId}
-            setPlaygroundModelId={setPlaygroundModelId}
-            playgroundPrompt={playgroundPrompt}
-            setPlaygroundPrompt={setPlaygroundPrompt}
-            providers={state.settings.providers}
-            providerForPlayground={providerForPlayground}
-            handlePlaygroundSend={handlePlaygroundSend}
-            playgroundResult={playgroundResult}
-            formatTime={formatTime}
-            viewingHistoricalBundle={viewingHistoricalBundle}
-            selectLatestExportBundle={selectLatestExportBundle}
-            latestFailure={latestFailure}
-            latestSuccess={latestSuccess}
-            summarizeLog={summarizeLog}
-            handleDiagnosticLogAction={handleDiagnosticLogAction}
-            copyLogSummary={copyLogSummary}
-            copyDiagnosticsSummary={copyDiagnosticsSummary}
-            exportDiagnosticsToFile={exportDiagnosticsToFile}
-            exportDiagnosticsZip={exportDiagnosticsZip}
-            openExportBundleDir={openExportBundleDir}
-            openExportZip={openExportZip}
-            clearExportHistory={clearExportHistory}
-            openStreamingDoc={() => openResource("streaming")}
-            exportSummary={exportSummary}
-            lastExportBundle={lastExportBundle}
-            exportHistory={exportHistory}
-            copyExportHeadline={copyExportHeadline}
-            runRecommendedAction={runRecommendedAction}
-            copyRecommendedAction={copyRecommendedAction}
-            copySupportSnapshot={copySupportSnapshot}
-            openExportArtifact={openExportArtifact}
-            selectExportBundle={selectExportBundle}
-            deleteExportBundle={deleteExportBundle}
-            statusDetail={statusDetail}
-          />
-        </aside>
-      </main>
-    </div>
-  );
+  const consoleView = <ConsoleWorkbench {...consoleWorkbenchProps} />;
 
   return (
     <>
@@ -960,7 +668,7 @@ export function App() {
             <div className="confirm-dialog-copy">
               <span className="panel-tag">草稿确认</span>
               <h3 id="provider-draft-confirm-title">当前 Provider 有未保存的草稿</h3>
-              <p>{providerDraftStatus.detail}</p>
+              <p>{derived.providerDraftStatus.detail}</p>
               <p>继续后会覆盖当前表单中的修改。</p>
             </div>
             <div className="confirm-dialog-actions">

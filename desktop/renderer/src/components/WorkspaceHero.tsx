@@ -1,9 +1,8 @@
 import type { DesktopBridgeStatus } from "../../../shared/bridge-status";
 import type { DesktopHealthSummary } from "../../../shared/desktop-health";
 import type { QuickstartSummary } from "../../../shared/quickstart";
-import type { AppMeta, AppState } from "../../../shared/types";
-
-type ConsoleFocus = "status" | "providers" | "kiro" | "logs" | "playground";
+import type { AppMeta } from "../../../shared/types";
+import type { ConsoleFocus, ReadinessIssue } from "../app-types";
 
 type Props = {
   quickstartSummary: QuickstartSummary;
@@ -11,8 +10,8 @@ type Props = {
   secondaryWorkbenchActionLabel: string;
   handlePrimaryWorkbenchAction: () => void | Promise<unknown>;
   handleSecondaryWorkbenchAction: () => void | Promise<unknown>;
-  primaryIssue: AppState["readinessIssues"][number] | null;
-  handleReadinessAction: (issue: AppState["readinessIssues"][number]) => void | Promise<unknown>;
+  primaryIssue: ReadinessIssue | null;
+  handleReadinessAction: (issue: ReadinessIssue) => void | Promise<unknown>;
   openConsole: (focus: ConsoleFocus) => void;
   selectedProviderLabel: string;
   selectedDefaultModel: string;

@@ -6,40 +6,14 @@ import type {
   WorkbenchExportSnapshot
 } from "../../../shared/types";
 import { DiagnosticsArtifactsPanel } from "./DiagnosticsArtifactsPanel";
-
-type WorkbenchTab = "logs" | "output" | "diagnostics";
-
-type ActionEntry = {
-  id: string;
-  title: string;
-  detail: string;
-  tone: "info" | "success" | "error";
-  at: string;
-};
-
-type ExportSummary = {
-  bundleName: string;
-  headline: string;
-  recommendedAction: DiagnosticsExportBundle["recommendedAction"] | null;
-  zipName: string;
-  readmeName: string;
-  summaryName: string;
-  snapshotName: string;
-  manifestName: string;
-  requestsName: string;
-  exportedAt: string | null;
-};
-
-type ToneState = {
-  title: string;
-  tone: "info" | "success" | "error";
-};
-
-type LogFilters = {
-  operation: string;
-  status: string;
-  errorOnly: boolean;
-};
+import type {
+  ActionEntry,
+  ExportSummary,
+  LogFilters,
+  ReadinessIssue,
+  ToneState,
+  WorkbenchTab
+} from "../app-types";
 
 type Props = {
   quickstartShowSetupWorkspace: boolean;
@@ -50,14 +24,8 @@ type Props = {
   formatTime: (value?: null | string) => string;
   describeLaunchStep: (step?: null | string) => string;
   describeBootstrapStep: (step?: null | string) => string;
-  readinessIssues: Array<{
-    key: string;
-    severity: "error" | "warning";
-    title: string;
-    detail: string;
-    action: string;
-  }>;
-  handleReadinessAction: (issue: any) => void | Promise<unknown>;
+  readinessIssues: ReadinessIssue[];
+  handleReadinessAction: (issue: ReadinessIssue) => void | Promise<unknown>;
   workbenchTab: WorkbenchTab;
   setWorkbenchTab: (tab: WorkbenchTab) => void;
   viewingHistoricalBundle: boolean;

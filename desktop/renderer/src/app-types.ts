@@ -1,4 +1,8 @@
-import type { DiagnosticsExportBundle } from "../../shared/types";
+import type {
+  AppState,
+  DiagnosticsExportBundle,
+  PlaygroundResult
+} from "../../shared/types";
 
 export type ViewKey = "home" | "console";
 export type ResourceKey = "quickstart" | "readme" | "providers" | "streaming" | "plan";
@@ -13,6 +17,12 @@ export type ActionEntry = {
   tone: "info" | "success" | "error";
   at: string;
 };
+
+export type PlaygroundState = PlaygroundResult & {
+  requestedAt: string;
+};
+
+export type ReadinessIssue = AppState["readinessIssues"][number];
 
 export type PendingProviderReplaceAction =
   | null
@@ -38,6 +48,11 @@ export type LogFilters = {
   operation: string;
   status: string;
   errorOnly: boolean;
+};
+
+export type ToneState = {
+  title: string;
+  tone: "info" | "success" | "error";
 };
 
 export type ExportSummary = {
