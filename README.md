@@ -1,136 +1,89 @@
 # Kiro++
 
-Windows-first local BYOK router and desktop control console for Kiro.
+Kiro++ 是一个 **Windows 优先的本地 BYOK 路由与桌面控制台**，目标是：
 
-`kiro++` lets Kiro use your own provider keys and models without modifying the installed Kiro application directory. It runs a local endpoint, writes reversible user settings, and exposes a desktop console for provider management, diagnostics, restore, and startup preheat.
+**让 Kiro 使用你自己的 API 与模型，不改原安装目录。**
 
-## What It Does
+这个项目在产品思路上明确借鉴了 Cursor++ 的几个方向：
 
-- Routes Kiro requests to your own provider keys.
-- Supports common domestic BYOK routes through built-in presets:
-  - DeepSeek
-  - DashScope / Qwen
-  - Moonshot / Kimi
-  - Zhipu GLM
-  - SiliconFlow
-- Provides a Windows desktop console for:
-  - provider setup and testing
-  - model list sync and default model selection
-  - BYOK on/off switching
+- 本地透明 BYOK
+- 多 Provider 路由
+- 不改原产品安装目录
+- 用可视化控制台承接配置、诊断、恢复和排错
+
+但 Kiro++ 面向的是 **Kiro**，不是 Cursor，也不做账号伪造、授权绕过或官方额度绕过。
+
+## 它能做什么
+
+- 在本机启动一个 Kiro 可用的本地 endpoint
+- 把 Kiro 请求路由到你自己的 Provider Key
+- 提供 Windows 桌面控制台，用来完成：
+  - Provider 预设选择、保存和测试
+  - 模型列表拉取与默认模型选择
+  - BYOK 开关
   - Kiro detect / apply / diagnose / restore
-  - startup auto-apply preheat
-  - request logs and diagnostics export
-  - support bundle export for issue reporting
-  - single-request model validation
-- Generates a Windows NSIS installer package.
+  - 启动时自动应用
+  - 日志查看与脱敏诊断导出
+  - 单次 Playground 验证
+- 生成 Windows NSIS 安装包
 
-## What It Does Not Do
+## 它不做什么
 
-- It does not modify `E:\Kiro` or any installed Kiro binaries.
-- It does not spoof accounts.
-- It does not bypass authorization, quotas, or official billing.
-- It does not write provider API keys into repo config files.
+- 不修改 `E:\Kiro` 或其他 Kiro 安装目录
+- 不伪造账号
+- 不绕过授权、额度或官方计费
+- 不把 Provider API Key 写进仓库配置文件
 
-## Install
+## 当前支持的常用 Provider 预设
 
-Use Node.js 18 or newer.
+- DeepSeek
+- DashScope / Qwen
+- Moonshot / Kimi
+- Zhipu GLM
+- SiliconFlow
+
+更多环境变量和 CLI 示例见：[docs/domestic-providers.md](docs/domestic-providers.md)
+
+## 最短上手路径
+
+### 桌面端方式
+
+1. 安装依赖
+2. 构建桌面端
+3. 打包 Windows 安装包
+4. 打开 `Kiro++ Console`
+5. 选择 Provider 预设并填写 Key
+6. 拉取或确认模型
+7. 测试 Provider
+8. Apply to Kiro
+9. Run Diagnose
+10. 使用 `Launch Kiro with Kiro++` 启动 Kiro
+
+常用命令：
 
 ```powershell
 npm install
 npm test
-```
-
-Build the desktop renderer:
-
-```powershell
+npm run typecheck
 npm run desktop:build
-```
-
-Run the desktop app in development mode:
-
-```powershell
-npm run desktop:dev
-```
-
-Build the Windows installer:
-
-```powershell
 npm run desktop:package
 ```
 
-The installer is written to `release/`.
+安装包输出位置：
 
-## Windows Desktop Flow
+```text
+release/kiro-plus-plus-0.1.0-x64.exe
+```
 
-After installation, you get two entry points:
+### DeepSeek 最短示例
 
-- `Kiro++ Console`
-- `Launch Kiro with Kiro++`
+桌面端推荐配置：
 
-Recommended first-run flow:
+- preset: `DeepSeek`
+- base URL: `https://api.deepseek.com`
+- model: `deepseek-v4-pro` 或 `deepseek-v4-flash`
 
-1. Open `Kiro++ Console`
-2. Select a provider preset
-3. Fill your API key
-4. Fetch or confirm models
-5. Test provider
-6. Apply to Kiro or enable BYOK
-7. Run Diagnose
-8. Optionally enable `启动时自动应用`
-9. Use `Launch Kiro with Kiro++` or the top-right launch button
-
-## Startup Auto-Apply
-
-The desktop console can enable `启动时自动应用`.
-
-When enabled, opening the desktop app will try to:
-
-1. detect Kiro
-2. start the local proxy
-3. re-apply BYOK routing when needed
-
-This is intended to reduce repeated manual setup before opening Kiro.
-
-The workbench now shows two different state cards:
-
-- `Launch Kiro with Kiro++`: the last manual Kiro launch attempt
-- `启动预热状态`: the last startup auto-apply attempt
-
-If startup auto-apply fails, the app should still open and show the failure state instead of silently doing nothing.
-
-## Support Bundles
-
-The desktop workbench can export a local diagnostics bundle.
-
-Available actions include:
-
-- export plain diagnostics files
-- export a zip support bundle
-- open the export directory
-- open the generated `README.txt`, `summary.txt`, `snapshot.json`, and `recent-requests.json`
-
-Exported data is redacted by default for:
-
-- authorization headers
-- cookies
-- AWS-style temporary security headers
-- local filesystem paths inside the exported summary/snapshot metadata
-
-This is the preferred artifact for GitHub Issues, LinuxDO troubleshooting, and private support chats.
-
-## Fastest DeepSeek Path
-
-Desktop path:
-
-1. Open `Kiro++ Console`
-2. Choose `DeepSeek`
-3. Fill your key
-4. Confirm `deepseek-v4-pro` or `deepseek-v4-flash`
-5. Test provider
-6. Apply to Kiro
-7. Launch Kiro with Kiro++
-
-CLI remains available:
+如果先走 CLI：
 
 ```powershell
 node .\src\cli\main.js health-config
@@ -140,7 +93,7 @@ node .\src\cli\main.js start
 node .\src\cli\main.js restore
 ```
 
-CLI example:
+CLI 环境变量示例：
 
 ```powershell
 $env:KIRO_PLUS_PROVIDER = "openai-compatible"
@@ -150,53 +103,108 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 node .\src\cli\main.js start
 ```
 
-More provider examples: [docs/domestic-providers.md](docs/domestic-providers.md)
+## 桌面端入口
 
-## Troubleshooting
+安装后默认会有两个入口：
 
-If Kiro still does not use the local route:
+- `Kiro++ Console`
+- `Launch Kiro with Kiro++`
 
-1. Run `Diagnose` in the desktop app
-2. Check `localRegions`
-3. Check `unsupportedOperationsSeen`
-4. Check the recent request log list
-5. Export a support bundle and inspect `summary.txt`
+推荐第一次使用时先打开 `Kiro++ Console` 完成配置，再启动 Kiro。
 
-Common causes:
+## 启动时自动应用
 
-- Provider key was never saved
-- `defaultModel` is not in `models[]`
-- Kiro was not fully restarted after route changes
-- Kiro profile-level settings are still forcing `auto`
-- The local proxy was not running when Kiro made the request
+桌面控制台支持 `启动时自动应用`。
 
-If the desktop app opens but the docs buttons fail in packaged builds, upgrade to a build that includes packaged `docs` path fallback support.
+开启后，应用启动时会尝试：
 
-## Verification Status
+1. 检测 Kiro 安装
+2. 启动本地代理
+3. 在需要时重新应用 BYOK 路由
 
-Current verified items:
+工作台中会分别显示：
+
+- `启动预热状态`
+- `Launch Kiro with Kiro++`
+
+这样可以区分“应用启动时自动处理失败”还是“手动拉起 Kiro 失败”。
+
+## 支持包与排错
+
+桌面端支持导出本地诊断包，适合：
+
+- GitHub Issue
+- LinuxDO 求助
+- 私下排错
+
+可导出的内容包括：
+
+- `summary.txt`
+- `snapshot.json`
+- `recent-requests.json`
+- `manifest.json`
+- `README.txt`
+
+默认会做脱敏处理：
+
+- `authorization`
+- `cookie`
+- AWS 临时安全头
+- 导出摘要中的本机文件路径
+
+推荐排错顺序：
+
+1. 运行 `Diagnose`
+2. 检查 `localRegions`
+3. 检查 `unsupportedOperationsSeen`
+4. 查看最近请求日志
+5. 导出支持包并查看 `summary.txt`
+
+## 当前验证状态
+
+当前仓库内已完成并确认通过：
 
 - `npm test`
 - `npm run typecheck`
 - `npm run desktop:build`
 - `npm run desktop:package`
-- Kiro settings routing diagnosis returns local endpoint coverage for all configured regions
-- Real Kiro traffic has been observed hitting:
+
+当前测试规模：
+
+- `84` 个自动化测试通过
+
+已经确认的协议与路由证据包括：
+
+- Kiro 路由诊断可返回本地 endpoint 覆盖
+- 已观察到真实 Kiro 请求命中本地代理：
   - `GetUsageLimits`
   - `ListAvailableModels`
   - `InvokeMCP`
   - `GenerateAssistantResponse`
 
-## Current Limitations
+更细的发布前记录见：
 
-- Windows only.
-- Upstream provider responses are currently buffered and then encoded into Kiro-compatible event-stream frames.
-- Installer-level smoke on a clean Windows machine still needs broader validation.
-- Kiro UI-level smoke for every release should still be done manually before public announcements.
+- [docs/release/release-verification.md](docs/release/release-verification.md)
+- [docs/release/smoke-checklist.md](docs/release/smoke-checklist.md)
 
-## Safety
+## 当前限制
 
-- `configure` backs up existing Kiro user settings before writing.
-- `restore` restores the newest backup back to the Kiro settings path.
-- Desktop BYOK OFF restores the latest Kiro backup.
-- Logs redact authorization, cookies, and AWS-style security headers by default.
+- 当前仅支持 Windows
+- 上游 Provider 的 SSE 目前仍是缓冲后再编码成 Kiro event-stream
+- 安装包在更多干净 Windows 机器上的入口验证还需要继续补
+- 每次正式公开发布前，仍建议做一次人工 Kiro UI 烟测
+
+## 文档入口
+
+- 桌面端最短路径：[docs/desktop-quickstart.md](docs/desktop-quickstart.md)
+- 国内 Provider 示例：[docs/domestic-providers.md](docs/domestic-providers.md)
+- Kiro 流式兼容说明：[docs/streaming-chat.md](docs/streaming-chat.md)
+- LinuxDO 发帖草稿：[docs/release/linuxdo-post.md](docs/release/linuxdo-post.md)
+- 发布前验收记录：[docs/release/release-verification.md](docs/release/release-verification.md)
+
+## 安全边界
+
+- `configure` 会先备份 Kiro 用户 settings 再写入
+- `restore` 会恢复最近一次备份
+- 桌面端关闭 BYOK 时会恢复最近的 Kiro 配置备份
+- 默认日志会对授权头、Cookie 和 AWS 风格安全头做脱敏

@@ -93,6 +93,8 @@ Recent Progress:
 - Added a setup-workspace blocker summary that prioritizes runtime readiness issues first and otherwise falls back to pending quickstart steps, so first-run users now see a single “what is blocking me now” surface before scanning the rest of the workbench.
 - Fixed desktop provider rename persistence so changing `provider id` now replaces the old profile entry instead of leaving both old and new ids in settings.
 - Fixed desktop secret migration during provider rename so an existing saved API key now follows the new `provider id` even when the user only renames the profile without re-entering the key.
+- Rewrote the top-level README into a public-release Chinese-first product entry, aligning the repo with the current desktop-console positioning and explicitly documenting the Cursor++-inspired BYOK/product direction.
+- Updated release-facing docs so LinuxDO post copy, release verification notes, and a dedicated manual smoke/screenshot checklist now reflect the current packaged artifact, current automated test count, and the remaining manual Kiro validation gap.
 
 Verification:
 - `npm test` passes with 84 tests.

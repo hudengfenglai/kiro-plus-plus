@@ -59,6 +59,7 @@
 - **借鉴的是产品思路，不是直接照搬代码**
 - Cursor++ 给我的启发主要是：把“本地 BYOK + 多 Provider + 可恢复配置 + 可视化控制”做成一个用户可直接上手的工具
 - `kiro++` 的实现目标则是把这套思路落到 Kiro 这条链路上
+- 当前仓库和发布材料里会明确标注这层借鉴关系，避免误解为同项目分支或直接搬运
 
 ### 最短接入路径
 
@@ -93,6 +94,7 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 已经完成的验证：
 
 - `npm test`
+- `npm run typecheck`
 - `npm run desktop:build`
 - `npm run desktop:package`
 - Kiro 路由诊断覆盖全部本地 region
@@ -109,6 +111,12 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 - 安装包在更多干净机器上的入口验证还需要继续补
 - 每次正式发版前，最好再做一次人工 Kiro UI 烟测
 
+### 仓库与下载
+
+- GitHub 仓库：`https://github.com/hudengfenglai/kiro-plus-plus`
+- Release 下载：`<RELEASE_DOWNLOAD_URL>`
+- 安装包文件名：`kiro-plus-plus-0.1.0-x64.exe`
+
 如果你本身就在折腾 Kiro + BYOK，这个版本已经够直接试了。
 
 ## 配图建议
@@ -123,6 +131,5 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 
 ## 发帖前手动替换项
 
-- 仓库地址：`<GITHUB_REPO_URL>`
 - 安装包下载地址：`<RELEASE_DOWNLOAD_URL>`
 - 截图文件名或图床链接
