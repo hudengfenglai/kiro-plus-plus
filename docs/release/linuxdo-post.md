@@ -27,6 +27,7 @@
 - 国内常用 Provider 预设
 - Kiro 配置备份 / 写入 / 恢复
 - 故障诊断和请求日志
+- 发布前摘要命令（文本 / Markdown / JSON）
 
 内置的高频 Provider 预设主要有：
 
@@ -46,6 +47,12 @@
   - BYOK ON / OFF
   - Kiro detect / apply / diagnose / restore
   - 日志和脱敏诊断摘要导出
+- 提供发布辅助命令，用来快速检查：
+  - 当前版本号
+  - 安装包是否存在
+  - 仓库是否还有未提交改动
+  - 发布文档是否齐全
+  - Release 下载地址是否还没替换
 
 ### 它不做什么
 
@@ -68,8 +75,17 @@
 ```powershell
 npm install
 npm test
+npm run typecheck
 npm run desktop:build
 npm run desktop:package
+npm run release:prep
+```
+
+如果你想直接生成可复制的发布摘要：
+
+```powershell
+npm run release:prep:markdown
+npm run release:prep:json
 ```
 
 如果你先想走 CLI：
@@ -97,6 +113,9 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 - `npm run typecheck`
 - `npm run desktop:build`
 - `npm run desktop:package`
+- `npm run release:prep`
+- `npm run release:prep:markdown`
+- `npm run release:prep:json`
 - Kiro 路由诊断覆盖全部本地 region
 - 已观察到真实 Kiro 请求命中本地代理：
   - `GetUsageLimits`
@@ -110,6 +129,7 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 - 上游 SSE 目前仍是缓冲后再转成 Kiro event-stream
 - 安装包在更多干净机器上的入口验证还需要继续补
 - 每次正式发版前，最好再做一次人工 Kiro UI 烟测
+- 发布辅助命令只能帮助整理状态，不能替代真实 Kiro 烟测
 
 ### 仓库与下载
 
