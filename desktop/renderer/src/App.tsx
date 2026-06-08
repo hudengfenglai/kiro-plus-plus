@@ -16,11 +16,24 @@ import {
 } from "../../shared/quickstart";
 import { inspectDesktopBridge } from "../../shared/bridge-status";
 import { buildDesktopHealthSummary } from "../../shared/desktop-health";
+import {
+  describeSupportBundleAvailability
+} from "../../shared/support-bundle-status";
+import {
+  buildLogShareText,
+  buildOutputShareText,
+  buildOutputTimelineText,
+  buildSupportSnapshotText,
+  buildWorkbenchShareMarkdown,
+  buildWorkbenchShareText
+} from "../../shared/workbench-share";
+import { describeWorkbenchSnapshotAvailability } from "../../shared/workbench-snapshot-status";
+import { DiagnosticsArtifactsPanel } from "./components/DiagnosticsArtifactsPanel";
+import { ValidationRail } from "./components/ValidationRail";
 import type {
   AppMeta,
   AppState,
   DiagnosticsExportBundle,
-  DiagnosticsSummarySource,
   DiagnosticsLogSnapshot,
   LaunchAttempt,
   PlaygroundResult,
@@ -124,7 +137,7 @@ const proxyStateLabels: Record<AppState["proxyStatus"]["state"], string> = {
 const resourceLinks: Array<{ key: ResourceKey; title: string; body: string }> = [
   {
     key: "quickstart",
-    title: "Quickstart",
+    title: "快速开始",
     body: "安装版的最短上手路径、启动预热和支持包说明。"
   },
   {
@@ -326,200 +339,6 @@ function summarizeLog(entry: DiagnosticsLogSnapshot | RequestLogEntry | null) {
     title: `${entry.operation || "未知操作"} / ${entry.status}`,
     body: `requestId ${entry.requestId ?? "-"} · ${formatTime(entry.at)}`
   };
-}
-
-function buildLogShareText(entry: DiagnosticsLogSnapshot | RequestLogEntry | null, kind: "failure" | "success") {
-  if (!entry) {
-    return kind === "failure"
-      ? "最近失败：暂无记录"
-      : "最近成功：暂无记录";
-  }
-
-  return [
-    `${kind === "failure" ? "最近失败" : "最近成功"}：${entry.operation || "未知操作"} / HTTP ${entry.status}`,
-    `requestId: ${entry.requestId ?? "-"}`,
-    `time: ${entry.at}`,
-    `durationMs: ${entry.durationMs ?? "-"}`,
-    `bodyBytes: ${entry.bodyBytes ?? "-"}`
-  ].join("\n");
-}
-
-function buildSupportSnapshotText({
-  bundleName,
-  headline,
-  recommendedAction,
-  latestFailure,
-  latestSuccess,
-  viewingHistoricalBundle
-}: {
-  bundleName: string;
-  headline?: string;
-  recommendedAction?: {
-    title: string;
-    actionLabel: string;
-    detail?: string;
-  } | null;
-  latestFailure?: DiagnosticsLogSnapshot | RequestLogEntry | null;
-  latestSuccess?: DiagnosticsLogSnapshot | RequestLogEntry | null;
-  viewingHistoricalBundle: boolean;
-}) {
-  return [
-    `支持快照：${bundleName}`,
-    viewingHistoricalBundle ? "模式：历史支持包快照" : "模式：当前支持包",
-    headline ? `首屏摘要：${headline}` : null,
-    recommendedAction
-      ? `推荐下一步：${recommendedAction.title} -> ${recommendedAction.actionLabel}`
-      : null,
-    recommendedAction?.detail ? `说明：${recommendedAction.detail}` : null,
-    buildLogShareText(latestFailure ?? null, "failure"),
-    buildLogShareText(latestSuccess ?? null, "success")
-  ].filter(Boolean).join("\n");
-}
-
-function buildOutputTimelineText(entries: ActionEntry[]) {
-  if (!entries.length) {
-    return [
-      "Kiro++ current session output",
-      "Entries: 0",
-      "No actions have been recorded in this desktop session yet."
-    ].join("\n");
-  }
-
-  return [
-    "Kiro++ current session output",
-    `Entries: ${entries.length}`,
-    ...entries.map((entry, index) =>
-      [
-        `#${index + 1} [${entry.tone}] ${entry.title}`,
-        `at: ${entry.at}`,
-        entry.detail
-      ].join("\n")
-    )
-  ].join("\n\n");
-}
-
-function buildOutputShareText({
-  entries,
-  viewingHistoricalBundle,
-  currentBundleName,
-  selectedProviderLabel,
-  proxyEndpoint,
-  proxyState,
-  isByokEnabled
-}: {
-  entries: ActionEntry[];
-  viewingHistoricalBundle: boolean;
-  currentBundleName: string | null;
-  selectedProviderLabel: string;
-  proxyEndpoint: string | null;
-  proxyState: string;
-  isByokEnabled: boolean;
-}) {
-  return [
-    "Kiro++ session share",
-    `Mode: ${viewingHistoricalBundle ? "historical bundle" : "live session"}`,
-    `Provider: ${selectedProviderLabel}`,
-    `BYOK: ${isByokEnabled ? "enabled" : "disabled"}`,
-    `Proxy: ${proxyState}${proxyEndpoint ? ` (${proxyEndpoint})` : ""}`,
-    currentBundleName ? `Bundle: ${currentBundleName}` : null,
-    "",
-    buildOutputTimelineText(entries)
-  ].filter(Boolean).join("\n");
-}
-
-function buildWorkbenchShareText({
-  bundleName,
-  recentLogsSource,
-  diagnosticsSummarySource,
-  diagnosticsSummary,
-  outputShareText,
-  outputCount,
-  outputSessionStartedAt,
-  latestFailure,
-  latestSuccess
-}: {
-  bundleName: string | null;
-  recentLogsSource: { kind: "live" | "bundle"; bundleName?: string };
-  diagnosticsSummarySource: { kind: "live" | "bundle"; bundleName?: string };
-  diagnosticsSummary: string;
-  outputShareText: string;
-  outputCount: number;
-  outputSessionStartedAt: null | string;
-  latestFailure: DiagnosticsLogSnapshot | RequestLogEntry | null;
-  latestSuccess: DiagnosticsLogSnapshot | RequestLogEntry | null;
-}) {
-  return [
-    "Kiro++ workbench share",
-    bundleName ? `Selected bundle: ${bundleName}` : "Selected bundle: none",
-    recentLogsSource.kind === "bundle"
-      ? `Logs source: bundle (${recentLogsSource.bundleName ?? "unknown"})`
-      : "Logs source: live",
-    diagnosticsSummarySource.kind === "bundle"
-      ? `Diagnostics source: bundle (${diagnosticsSummarySource.bundleName ?? "unknown"})`
-      : "Diagnostics source: live",
-    outputCount > 0
-      ? `Output session: ${outputCount} entries since ${outputSessionStartedAt ?? "-"}`
-      : "Output session: no entries in current desktop session",
-    "",
-    buildLogShareText(latestFailure, "failure"),
-    "",
-    buildLogShareText(latestSuccess, "success"),
-    "",
-    "Diagnostics summary:",
-    diagnosticsSummary || "暂无诊断摘要",
-    "",
-    outputShareText
-  ].join("\n");
-}
-
-function buildWorkbenchShareMarkdown({
-  bundleName,
-  recentLogsSource,
-  diagnosticsSummarySource,
-  diagnosticsSummary,
-  outputShareText,
-  outputCount,
-  outputSessionStartedAt,
-  latestFailure,
-  latestSuccess
-}: {
-  bundleName: string | null;
-  recentLogsSource: { kind: "live" | "bundle"; bundleName?: string };
-  diagnosticsSummarySource: { kind: "live" | "bundle"; bundleName?: string };
-  diagnosticsSummary: string;
-  outputShareText: string;
-  outputCount: number;
-  outputSessionStartedAt: null | string;
-  latestFailure: DiagnosticsLogSnapshot | RequestLogEntry | null;
-  latestSuccess: DiagnosticsLogSnapshot | RequestLogEntry | null;
-}) {
-  const text = buildWorkbenchShareText({
-    bundleName,
-    recentLogsSource,
-    diagnosticsSummarySource,
-    diagnosticsSummary,
-    outputShareText,
-    outputCount,
-    outputSessionStartedAt,
-    latestFailure,
-    latestSuccess
-  });
-
-  return [
-    "# Kiro++ Workbench Snapshot",
-    "",
-    `- Exported at: ${nowIso()}`,
-    `- Selected bundle: ${bundleName ?? "none"}`,
-    `- Logs source: ${recentLogsSource.kind === "bundle" ? `bundle (${recentLogsSource.bundleName ?? "unknown"})` : "live"}`,
-    `- Diagnostics source: ${diagnosticsSummarySource.kind === "bundle" ? `bundle (${diagnosticsSummarySource.bundleName ?? "unknown"})` : "live"}`,
-    outputCount > 0
-      ? `- Output session: ${outputCount} entries since ${outputSessionStartedAt ?? "-"}`
-      : "- Output session: no entries in current desktop session",
-    "",
-    "```text",
-    text,
-    "```"
-  ].join("\n");
 }
 
 function collectUnavailableReasons(actions: Record<string, { enabled: boolean; reason: string | null }>) {
@@ -739,10 +558,18 @@ export function App() {
       exportedAt: lastExportBundle.exportedAt ?? null
     };
   }, [lastExportBundle]);
+  const exportAvailability = useMemo(
+    () => describeSupportBundleAvailability(lastExportBundle),
+    [lastExportBundle]
+  );
 
   const exportHistory = useMemo(
     () => state.exportHistory ?? [],
     [state.exportHistory]
+  );
+  const latestWorkbenchExportAvailability = useMemo(
+    () => describeWorkbenchSnapshotAvailability(latestWorkbenchExport),
+    [latestWorkbenchExport]
   );
   const playgroundLockedByHistory = viewingHistoricalBundle;
 
@@ -939,7 +766,8 @@ export function App() {
       outputCount: outputEntries.length,
       outputSessionStartedAt,
       latestFailure,
-      latestSuccess
+      latestSuccess,
+      exportedAt: nowIso()
     });
     const result = await runAction(
       () => requireDesktopApi().exportWorkbenchSnapshot(markdown),
@@ -1031,6 +859,17 @@ export function App() {
     setState(typed);
   }
 
+  function writeSnapshotPath(filePath: string) {
+    writeClipboardText(filePath).then(() => {
+      setStatus("工作台快照路径已复制。");
+      setStatusDetail(filePath);
+    }).catch((error) => {
+      const parsed = describeError(error);
+      setStatus(parsed.summary);
+      setStatusDetail(parsed.detail);
+    });
+  }
+
   async function clearMissingDiagnosticsHistory() {
     const result = await runAction(
       () => requireDesktopApi().clearMissingDiagnosticsHistory(),
@@ -1120,8 +959,8 @@ export function App() {
         return runAction(
           () => requireDesktopApi().openResource("quickstart"),
           {
-            pending: "正在打开 Quickstart...",
-            success: "Quickstart 已打开。",
+            pending: "正在打开快速开始文档...",
+            success: "快速开始文档已打开。",
             afterFocus: "status"
           }
         );
@@ -1835,7 +1674,7 @@ export function App() {
             </p>
             <div className="hero-actions">
               <button onClick={() => openConsole(pickRecommendedFocus(state))}>快速开始</button>
-              <button className="ghost-button" onClick={() => openResource("quickstart")}>打开 Quickstart</button>
+              <button className="ghost-button" onClick={() => openResource("quickstart")}>打开快速开始</button>
               <button className="ghost-button" onClick={() => openConsole("providers")}>查看 Provider 配置</button>
               <button className="ghost-button" onClick={() => openConsole("logs")}>查看排错入口</button>
             </div>
@@ -1868,11 +1707,11 @@ export function App() {
                 <div><dt>BYOK</dt><dd>{state.settings.isByokEnabled ? "已启用" : "未启用"}</dd></div>
                 <div><dt>Provider</dt><dd>{selectedProviderLabel}</dd></div>
                 <div><dt>默认模型</dt><dd>{selectedProvider?.defaultModel ?? "未配置"}</dd></div>
-                <div><dt>Endpoint</dt><dd>{state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
+                <div><dt>本地地址</dt><dd>{state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
               </dl>
             </div>
             <div className={`hero-side-card bridge-card ${bridgeStatus.tone}`}>
-              <span className="panel-tag">Bridge</span>
+              <span className="panel-tag">桥接</span>
               <h3>{bridgeStatus.summary}</h3>
               <p>{bridgeStatus.detail}</p>
               <dl className="kv-grid compact">
@@ -1881,16 +1720,16 @@ export function App() {
               </dl>
             </div>
             <div className="hero-side-card">
-              <span className="panel-tag">Build</span>
+              <span className="panel-tag">版本</span>
               <h3>{appMeta ? `v${appMeta.version}` : "版本未知"}</h3>
               <p>{appMeta ? `当前运行于${appMeta.buildLabel}。` : "当前安装包还没有暴露版本元数据，建议重新安装最新版 Kiro++ Console。"}</p>
               <dl className="kv-grid compact">
                 <div><dt>来源</dt><dd>{appMeta?.buildLabel ?? "未知"}</dd></div>
-                <div><dt>环境</dt><dd>{appMeta?.source === "packaged" ? "packaged" : appMeta?.source === "development" ? "development" : "unknown"}</dd></div>
+                <div><dt>环境</dt><dd>{appMeta?.source === "packaged" ? "安装版" : appMeta?.source === "development" ? "开发版" : "未知"}</dd></div>
               </dl>
             </div>
             <div className={`hero-side-card health-card ${desktopHealth.severity}`}>
-              <span className="panel-tag">Health</span>
+              <span className="panel-tag">健康度</span>
               <h3>{desktopHealth.summary}</h3>
               <p>{desktopHealth.detail}</p>
               <div className="health-list">
@@ -1909,7 +1748,7 @@ export function App() {
               </div>
             </div>
             <div className="hero-side-card quickstart-card">
-              <span className="panel-tag">Quickstart</span>
+              <span className="panel-tag">快速开始</span>
               <h3>最短上手</h3>
               <ol className="quickstart-list dynamic">
                 {quickstartChecklist.map((item, index) => (
@@ -2009,7 +1848,7 @@ export function App() {
             <strong>{quickstartSummary.completedCount}/{quickstartSummary.totalCount}</strong>
           </div>
           <div className={`topbar-mode-pill bridge ${bridgeStatus.tone}`}>
-            <span>Bridge</span>
+            <span>桥接</span>
             <strong>{bridgeStatus.complete ? "完整" : "需更新"}</strong>
           </div>
           <button
@@ -2775,477 +2614,101 @@ export function App() {
               )}
 
               {workbenchTab === "diagnostics" && (
-                <div className="workbench-body">
-                  {viewingHistoricalBundle ? (
-                    <p className="workbench-history-hint">当前诊断摘要来自已选中的历史支持包；复制、查看和推荐动作都会沿用这份历史快照上下文。</p>
-                  ) : null}
-                  <div className="mini-actions diagnostics-source-row">
-                    <span className="snapshot-label">
-                      {state.diagnosticsSummarySource.kind === "bundle"
-                        ? `摘要来源：${state.diagnosticsSummarySource.bundleName}`
-                        : "摘要来源：当前实时诊断"}
-                    </span>
-                  </div>
-                  <div className="summary-actions">
-                    <button className="ghost-button" onClick={copyWorkbenchSnapshot}>复制当前工作台状态</button>
-                    <button className="ghost-button" onClick={exportWorkbenchSnapshot}>导出当前工作台状态</button>
-                    <button className="ghost-button" onClick={openLatestWorkbenchSnapshot}>打开最近工作台快照</button>
-                    <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制脱敏摘要</button>
-                    <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
-                    <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>
-                    <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
-                    <button className="ghost-button" onClick={openExportZip}>打开 zip 支持包</button>
-                    <button className="ghost-button" onClick={clearMissingDiagnosticsHistory}>清理失效支持包</button>
-                    <button className="ghost-button" onClick={clearExportHistory}>清空支持包历史</button>
-                    <button
-                      className="ghost-button"
-                      onClick={() =>
-                        runAction(() => requireDesktopApi().diagnoseKiro(), {
-                          pending: "正在刷新诊断...",
-                          success: "诊断已刷新。",
-                          afterFocus: "logs"
-                        })
-                      }
-                    >
-                      刷新诊断
-                    </button>
-                  </div>
-                  {exportSummary ? (
-                    <section className="export-card">
-                      <div className="export-card-head">
-                        <div>
-                          <span className="snapshot-label">Support Bundle</span>
-                          <strong>最近一次支持包</strong>
-                        </div>
-                        <small>{formatTime(exportSummary.exportedAt)}</small>
-                      </div>
-                      {exportSummary.headline ? (
-                        <div className="export-headline">
-                          <strong>首屏摘要</strong>
-                          <p>{exportSummary.headline}</p>
-                          <div className="mini-actions">
-                            <button className="ghost-button compact-button" onClick={copyExportHeadline}>复制首屏摘要</button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {exportSummary.recommendedAction ? (
-                        <div className="export-headline export-recommendation">
-                          <strong>推荐下一步</strong>
-                          <p>{`${exportSummary.recommendedAction.title} -> ${exportSummary.recommendedAction.actionLabel}`}</p>
-                          {exportSummary.recommendedAction.detail ? (
-                            <p className="export-subtle">{exportSummary.recommendedAction.detail}</p>
-                          ) : null}
-                          <div className="mini-actions">
-                            <button className="ghost-button compact-button" onClick={runRecommendedAction}>
-                              {viewingHistoricalBundle ? "回到最新后执行" : "立即执行"}
-                            </button>
-                            <button className="ghost-button compact-button" onClick={copyRecommendedAction}>复制推荐下一步</button>
-                          </div>
-                        </div>
-                      ) : null}
-                      <dl className="kv-grid compact">
-                        <div><dt>目录</dt><dd>{exportSummary.bundleName}</dd></div>
-                        <div><dt>状态</dt><dd>{lastExportBundle?.exists === false ? "文件缺失" : "可用"}</dd></div>
-                        <div><dt>zip</dt><dd>{
-                          !lastExportBundle?.zipPath
-                            ? "未导出"
-                            : lastExportBundle.zipExists === false
-                              ? `${exportSummary.zipName}（文件缺失）`
-                              : exportSummary.zipName
-                        }</dd></div>
-                        <div><dt>说明</dt><dd>{exportSummary.readmeName}</dd></div>
-                        <div><dt>摘要</dt><dd>{exportSummary.summaryName}</dd></div>
-                        <div><dt>快照</dt><dd>{exportSummary.snapshotName}</dd></div>
-                        <div><dt>请求</dt><dd>{exportSummary.requestsName}</dd></div>
-                        <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
-                      </dl>
-                      {lastExportBundle?.exists === false ? (
-                        <p className="export-subtle">
-                          这条支持包记录对应的文件已经不完整或被删除
-                          {lastExportBundle.missingPaths?.length
-                            ? `：缺少 ${lastExportBundle.missingPaths.join(", ")}`
-                            : ""}
-                          ，建议移除这条历史后重新导出。
-                        </p>
-                      ) : null}
-                      {lastExportBundle?.exists !== false && lastExportBundle?.zipPath && lastExportBundle?.zipExists === false ? (
-                        <p className="export-subtle">当前支持包主体仍可用，但 `.zip` 文件已经不存在；如需分享压缩包，请重新导出 zip。</p>
-                      ) : null}
-                      <div className="export-actions">
-                        <button className="ghost-button" onClick={copySupportSnapshot}>复制支持快照</button>
-                        <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
-                        <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.summaryPath ?? null, "摘要文件")}>打开摘要</button>
-                        <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.jsonPath ?? null, "快照文件")}>打开快照</button>
-                        <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.manifestPath ?? null, "清单文件")}>打开清单</button>
-                        <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}>打开请求</button>
-                        {viewingHistoricalBundle ? (
-                          <button className="ghost-button" onClick={selectLatestExportBundle}>回到最新支持包</button>
-                        ) : null}
-                      </div>
-                      {viewingHistoricalBundle ? (
-                        <p className="export-hint">当前正在查看历史支持包快照；复制摘要会复制这条历史摘要，推荐动作会先自动回到最新支持包，再作用于当前环境。</p>
-                      ) : null}
-                      {exportHistory.length > 1 ? (
-                        <div className="export-history">
-                          <div className="export-history-head">
-                            <strong>最近支持包历史</strong>
-                            <small>保留最近 {exportHistory.length} 次</small>
-                          </div>
-                          <div className="export-history-list">
-                            {exportHistory.map((bundle) => (
-                              <div
-                                key={bundle.bundleName}
-                                className={bundle.bundleName === lastExportBundle?.bundleName ? "history-row active" : "history-row"}
-                              >
-                                <button
-                                  className={`${bundle.bundleName === lastExportBundle?.bundleName ? "history-chip active" : "history-chip"}${bundle.exists === false ? " missing" : ""}`}
-                                  onClick={() => selectExportBundle(bundle)}
-                                >
-                                  <span>{bundle.bundleName}</span>
-                                  <small>{formatTime(bundle.exportedAt)}{bundle.exists === false ? " · 文件缺失" : ""}</small>
-                                </button>
-                                <button className="ghost-button history-delete" onClick={() => deleteExportBundle(bundle)}>移除</button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <p className="export-hint">导出内容已默认脱敏，适合发到 GitHub Issue、LinuxDO 或群内排错。</p>
-                    </section>
-                  ) : null}
-                  {latestWorkbenchExport ? (
-                    <section className="export-card compact-export-card">
-                      <div className="export-card-head">
-                        <div>
-                          <span className="snapshot-label">Workbench Snapshot</span>
-                          <strong>最近工作台快照</strong>
-                        </div>
-                        <small>{formatTime(latestWorkbenchExport.exportedAt)}</small>
-                      </div>
-                      <dl className="kv-grid compact">
-                        <div><dt>文件</dt><dd>{basename(latestWorkbenchExport.filePath)}</dd></div>
-                        <div><dt>状态</dt><dd>{latestWorkbenchExport.exists === false ? "文件缺失" : "可打开"}</dd></div>
-                        <div><dt>位置</dt><dd>{latestWorkbenchExport.filePath}</dd></div>
-                      </dl>
-                      {latestWorkbenchExport.exists === false ? (
-                        <p className="export-subtle">这个快照文件已经不在磁盘上了，可以直接移除这条历史记录。</p>
-                      ) : null}
-                      <div className="export-actions compact-export-actions">
-                        <button className="ghost-button" onClick={openLatestWorkbenchSnapshot}>打开快照</button>
-                        <button
-                          className="ghost-button"
-                          onClick={() => writeClipboardText(latestWorkbenchExport.filePath).then(() => {
-                            setStatus("工作台快照路径已复制。");
-                            setStatusDetail(latestWorkbenchExport.filePath);
-                          }).catch((error) => {
-                            const parsed = describeError(error);
-                            setStatus(parsed.summary);
-                            setStatusDetail(parsed.detail);
-                          })}
-                        >
-                          复制路径
-                        </button>
-                        <button className="ghost-button" onClick={clearMissingWorkbenchExportHistory}>清理失效快照</button>
-                        <button className="ghost-button" onClick={clearWorkbenchExportHistory}>清空快照历史</button>
-                      </div>
-                      {workbenchExportHistory.length > 1 ? (
-                        <div className="export-history compact-export-history">
-                          <div className="export-history-head">
-                            <strong>最近快照历史</strong>
-                            <small>保留最近 {workbenchExportHistory.length} 次</small>
-                          </div>
-                          <div className="export-history-list">
-                            {workbenchExportHistory.map((snapshot) => (
-                              <div
-                                key={snapshot.filePath}
-                                className={snapshot.filePath === latestWorkbenchExport.filePath ? "history-row active" : "history-row"}
-                              >
-                                <button
-                                  className={`${snapshot.filePath === latestWorkbenchExport.filePath ? "history-chip active" : "history-chip"}${snapshot.exists === false ? " missing" : ""}`}
-                                  onClick={() => openWorkbenchSnapshot(snapshot.filePath)}
-                                >
-                                  <span>{basename(snapshot.filePath)}</span>
-                                  <small>{formatTime(snapshot.exportedAt)}{snapshot.exists === false ? " · 文件缺失" : ""}</small>
-                                </button>
-                                <button className="ghost-button history-delete" onClick={() => deleteWorkbenchExport(snapshot.filePath)}>移除</button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : null}
-                      <p className="export-hint">这个 Markdown 文件保存的是当前工作台视图，适合直接附到 GitHub Issue 或 LinuxDO 帖子。</p>
-                    </section>
-                  ) : null}
-                  <pre className="summary-block">{state.diagnosticsSummary || "诊断摘要将在这里显示。"}</pre>
-                </div>
+                <DiagnosticsArtifactsPanel
+                  diagnosticsSummarySource={state.diagnosticsSummarySource}
+                  diagnosticsSummary={state.diagnosticsSummary}
+                  viewingHistoricalBundle={viewingHistoricalBundle}
+                  exportSummary={exportSummary}
+                  lastExportBundle={lastExportBundle}
+                  exportHistory={exportHistory}
+                  latestWorkbenchExport={latestWorkbenchExport}
+                  workbenchExportHistory={workbenchExportHistory}
+                  statusDetail={statusDetail}
+                  formatTime={formatTime}
+                  basename={basename}
+                  copyWorkbenchSnapshot={copyWorkbenchSnapshot}
+                  exportWorkbenchSnapshot={exportWorkbenchSnapshot}
+                  openLatestWorkbenchSnapshot={openLatestWorkbenchSnapshot}
+                  copyDiagnosticsSummary={copyDiagnosticsSummary}
+                  exportDiagnosticsToFile={exportDiagnosticsToFile}
+                  exportDiagnosticsZip={exportDiagnosticsZip}
+                  openExportBundleDir={openExportBundleDir}
+                  openExportZip={openExportZip}
+                  clearMissingDiagnosticsHistory={clearMissingDiagnosticsHistory}
+                  clearExportHistory={clearExportHistory}
+                  refreshDiagnose={() =>
+                    runAction(() => requireDesktopApi().diagnoseKiro(), {
+                      pending: "正在刷新诊断...",
+                      success: "诊断已刷新。",
+                      afterFocus: "logs"
+                    })
+                  }
+                  copyExportHeadline={copyExportHeadline}
+                  runRecommendedAction={runRecommendedAction}
+                  copyRecommendedAction={copyRecommendedAction}
+                  copySupportSnapshot={copySupportSnapshot}
+                  openExportArtifact={openExportArtifact}
+                  selectLatestExportBundle={selectLatestExportBundle}
+                  selectExportBundle={selectExportBundle}
+                  deleteExportBundle={deleteExportBundle}
+                  writeSnapshotPath={writeSnapshotPath}
+                  clearMissingWorkbenchExportHistory={clearMissingWorkbenchExportHistory}
+                  clearWorkbenchExportHistory={clearWorkbenchExportHistory}
+                  openWorkbenchSnapshot={openWorkbenchSnapshot}
+                  deleteWorkbenchExport={deleteWorkbenchExport}
+                />
               )}
             </section>
           ) : null}
         </section>
 
         <aside className={`rail right ${focus === "playground" || focus === "logs" ? "focused" : ""}`}>
-          {quickstartSummary.showSetupRail ? (
-            <section className="rail-panel setup-rail-panel">
-              <div className="rail-panel-head">
-                <div>
-                  <span className="panel-tag">Setup Rail</span>
-                  <h2>先完成接入，再做验证</h2>
-                </div>
-              </div>
-              <div className="signal-stack">
-                {quickstartChecklist.map((item) => (
-                  <article key={item.id} className={`signal-card ${item.current ? "error" : ""}`}>
-                    <span>{item.current ? "当前步骤" : item.done ? "已完成" : "待处理"}</span>
-                    <strong>{item.title}</strong>
-                    <p>{item.detail}</p>
-                    <button className="ghost-button compact-button" onClick={() => handleQuickstartAction(item)}>
-                      {item.actionLabel}
-                    </button>
-                  </article>
-                ))}
-              </div>
-              <div className="button-stack">
-                <button className="ghost-button" onClick={() => openResource("quickstart")}>打开 Quickstart</button>
-                <button className="ghost-button" onClick={() => openResource("providers")}>打开 Provider 文档</button>
-              </div>
-            </section>
-          ) : (
-            <>
-              <section className="rail-panel">
-                <div className="rail-panel-head">
-                  <div>
-                    <span className="panel-tag">Playground</span>
-                    <h2>单次模型验证</h2>
-                  </div>
-                </div>
-
-                {playgroundLockedByHistory ? (
-                  <div className="playground-history-lock">
-                    <div className="playground-history-lock-copy">
-                      <strong>当前正在查看历史支持包，已暂停实时模型验证</strong>
-                      <p>右侧的 Provider、模型和 prompt 仅保留为历史参考。要发送真实请求，请先回到最新支持包。</p>
-                    </div>
-                    <div className="mini-actions">
-                      <button className="ghost-button compact-button" onClick={handleResumeLivePlayground}>
-                        回到实时验证区
-                      </button>
-                      <button
-                        className="ghost-button compact-button"
-                        onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}
-                      >
-                        打开历史请求
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <label className="field">
-                  <span>provider</span>
-                  <select
-                    value={playgroundProviderId}
-                    disabled={playgroundLockedByHistory}
-                    onChange={(event) => setPlaygroundProviderId(event.target.value)}
-                  >
-                    {state.settings.providers.map((provider) => (
-                      <option key={provider.id} value={provider.id}>{provider.label}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>model</span>
-                  <select
-                    value={playgroundModelId}
-                    disabled={playgroundLockedByHistory}
-                    onChange={(event) => setPlaygroundModelId(event.target.value)}
-                  >
-                    {(providerForPlayground?.models ?? []).map((model) => (
-                      <option key={model.id} value={model.id}>{model.id}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>prompt</span>
-                  <textarea
-                    value={playgroundPrompt}
-                    readOnly={playgroundLockedByHistory}
-                    onChange={(event) => setPlaygroundPrompt(event.target.value)}
-                  />
-                </label>
-
-                <div className="button-stack">
-                  <button onClick={handlePlaygroundSend}>
-                    {playgroundLockedByHistory ? "回到实时后验证" : "发送验证"}
-                  </button>
-                </div>
-
-                <div className="playground-result">
-                  <div className="result-head">
-                    <strong>
-                      {playgroundResult?.ok
-                        ? "请求成功"
-                        : (playgroundLockedByHistory ? "历史模式" : "等待请求")}
-                    </strong>
-                    <small>{formatTime(playgroundResult?.requestedAt)}</small>
-                  </div>
-                  <dl className="kv-grid compact">
-                    <div><dt>modelId</dt><dd>{playgroundResult?.modelId ?? (playgroundModelId || "未选择")}</dd></div>
-                    <div><dt>latency</dt><dd>{playgroundResult ? `${playgroundResult.latencyMs} ms` : "-"}</dd></div>
-                  </dl>
-                  <pre>
-                    {playgroundResult?.text
-                      ?? (playgroundLockedByHistory
-                        ? "当前展示的是历史支持包上下文。回到最新支持包后，再在这里发起真实模型验证。"
-                        : "发送后在这里显示模型返回文本。")}
-                  </pre>
-                </div>
-              </section>
-
-              <section className="rail-panel">
-                <div className="rail-panel-head">
-                  <div>
-                    <span className="panel-tag">Diagnostics</span>
-                    <h2>伴随排错</h2>
-                  </div>
-                </div>
-
-                {viewingHistoricalBundle ? (
-                  <div className="diagnostics-history-lock">
-                    <div className="diagnostics-history-lock-copy">
-                      <strong>当前 Diagnostics 来自历史支持包快照</strong>
-                      <p>失败/成功摘要和“查看详情”都基于这份历史支持包，不会直接跳到当前实时日志。</p>
-                    </div>
-                    <div className="mini-actions">
-                      <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
-                        回到最新支持包
-                      </button>
-                      <button
-                        className="ghost-button compact-button"
-                        onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}
-                      >
-                        打开历史请求
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="signal-stack">
-                  <article className="signal-card error">
-                    <span>最近失败</span>
-                    <strong>{summarizeLog(latestFailure).title}</strong>
-                    <p>{summarizeLog(latestFailure).body}</p>
-                    <div className="mini-actions">
-                      <button className="ghost-button compact-button" onClick={() => handleDiagnosticLogAction(latestFailure)}>查看详情</button>
-                      <button className="ghost-button compact-button" onClick={() => copyLogSummary(latestFailure, "failure")}>复制摘要</button>
-                    </div>
-                  </article>
-                  <article className="signal-card">
-                    <span>最近成功</span>
-                    <strong>{summarizeLog(latestSuccess).title}</strong>
-                    <p>{summarizeLog(latestSuccess).body}</p>
-                    <div className="mini-actions">
-                      <button className="ghost-button compact-button" onClick={() => handleDiagnosticLogAction(latestSuccess)}>查看详情</button>
-                      <button className="ghost-button compact-button" onClick={() => copyLogSummary(latestSuccess, "success")}>复制摘要</button>
-                    </div>
-                  </article>
-                </div>
-                {viewingHistoricalBundle ? (
-                  <p className="export-hint">当前右侧摘要来自历史支持包快照；复制摘要会复制历史上下文，查看详情会打开该支持包的请求文件。</p>
-                ) : null}
-
-                <div className="button-stack">
-                  <button className="ghost-button" onClick={() => openResource("quickstart")}>打开 Quickstart</button>
-                  <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制诊断摘要</button>
-                  <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
-                  <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>
-                  <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
-                  <button className="ghost-button" onClick={openExportZip}>打开 zip 支持包</button>
-                  <button className="ghost-button" onClick={clearExportHistory}>清空支持包历史</button>
-                  <button className="ghost-button" onClick={() => openResource("providers")}>打开 Provider 文档</button>
-                  <button className="ghost-button" onClick={() => openResource("streaming")}>打开 Streaming 文档</button>
-                </div>
-
-                {exportSummary ? (
-                  <section className="export-card compact-export-card">
-                    <div className="export-card-head">
-                      <div>
-                        <span className="snapshot-label">Latest Bundle</span>
-                        <strong>{exportSummary.bundleName}</strong>
-                      </div>
-                      <small>{formatTime(exportSummary.exportedAt)}</small>
-                    </div>
-                    {exportSummary.headline ? (
-                      <div className="export-headline compact">
-                        <strong>首屏摘要</strong>
-                        <p>{exportSummary.headline}</p>
-                        <div className="mini-actions">
-                          <button className="ghost-button compact-button" onClick={copyExportHeadline}>复制首屏摘要</button>
-                        </div>
-                      </div>
-                    ) : null}
-                    {exportSummary.recommendedAction ? (
-                      <div className="export-headline compact export-recommendation">
-                        <strong>推荐下一步</strong>
-                        <p>{`${exportSummary.recommendedAction.title} -> ${exportSummary.recommendedAction.actionLabel}`}</p>
-                        {exportSummary.recommendedAction.detail ? (
-                          <p className="export-subtle">{exportSummary.recommendedAction.detail}</p>
-                        ) : null}
-                        <div className="mini-actions">
-                          <button className="ghost-button compact-button" onClick={runRecommendedAction}>
-                            {viewingHistoricalBundle ? "回到最新后执行" : "立即执行"}
-                          </button>
-                          <button className="ghost-button compact-button" onClick={copyRecommendedAction}>复制推荐下一步</button>
-                        </div>
-                      </div>
-                    ) : null}
-                    <dl className="kv-grid compact">
-                      <div><dt>zip</dt><dd>{lastExportBundle?.zipPath ? exportSummary.zipName : "未导出"}</dd></div>
-                      <div><dt>说明</dt><dd>{exportSummary.readmeName}</dd></div>
-                      <div><dt>摘要</dt><dd>{exportSummary.summaryName}</dd></div>
-                      <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
-                    </dl>
-                    <div className="export-actions compact-export-actions">
-                      <button className="ghost-button" onClick={copySupportSnapshot}>复制支持快照</button>
-                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
-                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.summaryPath ?? null, "摘要文件")}>打开摘要</button>
-                      <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.manifestPath ?? null, "清单文件")}>打开清单</button>
-                      {viewingHistoricalBundle ? (
-                        <button className="ghost-button" onClick={selectLatestExportBundle}>回到最新</button>
-                      ) : null}
-                    </div>
-                    {exportHistory.length > 1 ? (
-                      <div className="export-history compact-export-history">
-                        <div className="export-history-head">
-                          <strong>最近历史</strong>
-                        </div>
-                        <div className="export-history-list">
-                          {exportHistory.slice(0, 3).map((bundle) => (
-                            <div
-                              key={bundle.bundleName}
-                              className={bundle.bundleName === lastExportBundle?.bundleName ? "history-row active" : "history-row"}
-                            >
-                              <button
-                                className={bundle.bundleName === lastExportBundle?.bundleName ? "history-chip active" : "history-chip"}
-                                onClick={() => selectExportBundle(bundle)}
-                              >
-                                <span>{bundle.bundleName}</span>
-                                <small>{formatTime(bundle.exportedAt)}</small>
-                              </button>
-                              <button className="ghost-button history-delete" onClick={() => deleteExportBundle(bundle)}>移除</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-                    <p className="export-hint">这里显示最近一次可分享支持包，优先发 zip 即可。</p>
-                  </section>
-                ) : null}
-
-                {statusDetail ? <pre className="status-detail">{statusDetail}</pre> : null}
-              </section>
-            </>
-          )}
+          <ValidationRail
+            quickstartSummaryShowSetupRail={quickstartSummary.showSetupRail}
+            quickstartChecklist={quickstartChecklist}
+            handleQuickstartAction={handleQuickstartAction}
+            openQuickstart={() => openResource("quickstart")}
+            openProvidersDoc={() => openResource("providers")}
+            playgroundLockedByHistory={playgroundLockedByHistory}
+            handleResumeLivePlayground={handleResumeLivePlayground}
+            openHistoricalRequests={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}
+            playgroundProviderId={playgroundProviderId}
+            setPlaygroundProviderId={setPlaygroundProviderId}
+            playgroundModelId={playgroundModelId}
+            setPlaygroundModelId={setPlaygroundModelId}
+            playgroundPrompt={playgroundPrompt}
+            setPlaygroundPrompt={setPlaygroundPrompt}
+            providers={state.settings.providers}
+            providerForPlayground={providerForPlayground}
+            handlePlaygroundSend={handlePlaygroundSend}
+            playgroundResult={playgroundResult}
+            formatTime={formatTime}
+            viewingHistoricalBundle={viewingHistoricalBundle}
+            selectLatestExportBundle={selectLatestExportBundle}
+            latestFailure={latestFailure}
+            latestSuccess={latestSuccess}
+            summarizeLog={summarizeLog}
+            handleDiagnosticLogAction={handleDiagnosticLogAction}
+            copyLogSummary={copyLogSummary}
+            copyDiagnosticsSummary={copyDiagnosticsSummary}
+            exportDiagnosticsToFile={exportDiagnosticsToFile}
+            exportDiagnosticsZip={exportDiagnosticsZip}
+            openExportBundleDir={openExportBundleDir}
+            openExportZip={openExportZip}
+            clearExportHistory={clearExportHistory}
+            openStreamingDoc={() => openResource("streaming")}
+            exportSummary={exportSummary}
+            lastExportBundle={lastExportBundle}
+            exportHistory={exportHistory}
+            copyExportHeadline={copyExportHeadline}
+            runRecommendedAction={runRecommendedAction}
+            copyRecommendedAction={copyRecommendedAction}
+            copySupportSnapshot={copySupportSnapshot}
+            openExportArtifact={openExportArtifact}
+            selectExportBundle={selectExportBundle}
+            deleteExportBundle={deleteExportBundle}
+            statusDetail={statusDetail}
+          />
         </aside>
       </main>
     </div>

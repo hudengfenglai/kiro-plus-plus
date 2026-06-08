@@ -118,9 +118,15 @@ Recent Progress:
 - Fixed desktop secret migration during provider rename so an existing saved API key now follows the new `provider id` even when the user only renames the profile without re-entering the key.
 - Rewrote the top-level README into a public-release Chinese-first product entry, aligning the repo with the current desktop-console positioning and explicitly documenting the Cursor++-inspired BYOK/product direction.
 - Updated release-facing docs so LinuxDO post copy, release verification notes, and a dedicated manual smoke/screenshot checklist now reflect the current packaged artifact, current automated test count, and the remaining manual Kiro validation gap.
+- Replaced raw missing support-bundle keys such as `summaryPath` with user-readable Chinese file labels in the renderer, and distinguished `主体缺失` from `zip 缺失` in both the main diagnostics card and the compact history lists.
+- Continued the release-facing UI polish by removing leftover English labels from the support-bundle / snapshot / diagnostics surfaces and adding explicit hints that clearing stale history does not delete exported files.
+- Promoted workbench snapshots to the same status-treatment level as support bundles by centralizing `可打开 / 文件缺失` availability rules and reusing them in the main snapshot card and snapshot history list.
+- Localized more release-facing renderer copy by converting share/export text blocks and home status cards away from leftover English labels like `Build`, `Health`, `Endpoint`, `Mode`, and `Logs source`, so copied diagnostics now read more naturally for Chinese-first users.
+- Extracted the center diagnostics artifacts area into a dedicated renderer component, reducing `App.tsx` size without changing IPC or diagnostics behavior.
+- Extracted the right-hand validation rail into its own renderer component and aligned its quickstart typing with the shared `QuickstartItem` contract, keeping the three-column workbench wiring stable while further reducing `App.tsx` complexity.
 
 Verification:
-- `npm test` passes with 94 tests.
+- `npm test` passes with 125 tests.
 - `npm run typecheck` succeeds.
 - `npm run desktop:build` succeeds.
 - Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.
