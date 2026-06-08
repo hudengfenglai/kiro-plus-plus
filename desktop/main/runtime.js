@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 import { normalizeAppSettings } from "../../src/config.js";
-import { buildDesktopHealthSummary, formatDesktopHealthSummary, getDesktopHealthPrimaryAction } from "../shared/desktop-health.js";
+import {
+  buildDesktopHealthSummary,
+  formatDesktopHealthSummary,
+  getDesktopHealthPrimaryAction,
+  formatDesktopHealthHeadline
+} from "../shared/desktop-health.js";
 
 function withProvider(settings, profile, previousProviderId = null) {
   const providers = settings.providers.filter((item) => item.id !== profile.id && item.id !== previousProviderId);
@@ -203,8 +208,10 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
     kiroDetection
   });
   const desktopHealthPrimaryAction = getDesktopHealthPrimaryAction(desktopHealth);
+  const desktopHealthHeadline = formatDesktopHealthHeadline(desktopHealth);
   return [
     "Kiro++ diagnostics summary",
+    `Support snapshot headline: ${desktopHealthHeadline}`,
     `BYOK: ${settings.isByokEnabled ? "enabled" : "disabled"}`,
     `Proxy: ${proxyStatus.state}${proxyStatus.endpoint ? ` (${proxyStatus.endpoint})` : ""}`,
     `Kiro installed: ${kiroDetection.installed ? "yes" : "no"}`,
@@ -816,6 +823,7 @@ export class DesktopRuntime {
       }
     });
     const desktopHealthPrimaryAction = getDesktopHealthPrimaryAction(desktopHealth);
+    const desktopHealthHeadline = formatDesktopHealthHeadline(desktopHealth);
     const exportedAt = this.now().toISOString();
     const stamp = exportedAt.replace(/[:.]/g, "-");
     const bundleName = `kiro-plus-plus-diagnostics-${stamp}`;
@@ -831,6 +839,7 @@ export class DesktopRuntime {
     await writeFile(jsonPath, `${JSON.stringify({
       exportedAt,
       summary: text,
+      desktopHealthHeadline,
       desktopHealth,
       desktopHealthPrimaryAction,
       proxyStatus: sharedState.proxyStatus,
@@ -843,6 +852,7 @@ export class DesktopRuntime {
     await writeFile(manifestPath, `${JSON.stringify({
       exportedAt,
       bundleName,
+      desktopHealthHeadline,
       desktopHealth: {
         severity: desktopHealth.severity,
         summary: desktopHealth.summary,

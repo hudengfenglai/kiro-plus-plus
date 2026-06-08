@@ -116,3 +116,11 @@ export function getDesktopHealthPrimaryAction(summary) {
     detail: item.detail
   };
 }
+
+export function formatDesktopHealthHeadline(summary) {
+  const primary = getDesktopHealthPrimaryAction(summary);
+  if (summary.items.length === 0) {
+    return "环境已就绪，建议直接进入 Playground 做一次最小模型验证。";
+  }
+  return `${primary.title}，建议先${primary.actionLabel}。`;
+}

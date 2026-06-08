@@ -35,3 +35,4 @@ export function getDesktopHealthPrimaryAction(summary: DesktopHealthSummary): {
   title: string;
   detail: string;
 };
+export function formatDesktopHealthHeadline(summary: DesktopHealthSummary): string;

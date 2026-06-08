@@ -11,7 +11,12 @@ import {
   summarizeQuickstartChecklist
 } from "../desktop/shared/quickstart.js";
 import { getRequiredBridgeMethods, inspectDesktopBridge } from "../desktop/shared/bridge-status.js";
-import { buildDesktopHealthSummary, formatDesktopHealthSummary, getDesktopHealthPrimaryAction } from "../desktop/shared/desktop-health.js";
+import {
+  buildDesktopHealthSummary,
+  formatDesktopHealthSummary,
+  getDesktopHealthPrimaryAction,
+  formatDesktopHealthHeadline
+} from "../desktop/shared/desktop-health.js";
 
 function makeState(overrides = {}) {
   const provider = {
@@ -838,4 +843,49 @@ test("getDesktopHealthPrimaryAction returns the first actionable item or a ready
   }));
   assert.equal(readyAction.actionLabel, "进入 Playground");
   assert.equal(readyAction.actionKind, "open-playground");
+});
+
+test("formatDesktopHealthHeadline produces a short shareable recommendation", () => {
+  const blockedHeadline = formatDesktopHealthHeadline(buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge({
+      getState: () => undefined,
+      bootstrap: () => undefined,
+      launchKiroWithProxy: () => undefined
+    }),
+    appMeta: null,
+    proxyStatus: {
+      state: "stopped",
+      endpoint: null,
+      error: null
+    },
+    kiroDetection: {
+      installed: false,
+      detectionHint: "尚未检测到 Kiro 安装。"
+    }
+  }));
+  assert.match(blockedHeadline, /建议先查看 Quickstart/);
+
+  const readyHeadline = formatDesktopHealthHeadline(buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge(
+      Object.fromEntries(getRequiredBridgeMethods().map((method) => [method, () => undefined]))
+    ),
+    appMeta: {
+      version: "0.1.0",
+      isPackaged: true,
+      source: "packaged",
+      buildLabel: "安装包",
+      appPath: "C:\\Program Files\\Kiro++ Console\\resources\\app.asar"
+    },
+    proxyStatus: {
+      state: "running",
+      endpoint: "http://127.0.0.1:43119",
+      error: null
+    },
+    kiroDetection: {
+      installed: true,
+      detectionHint: "已检测到 Kiro。"
+    }
+  }));
+  assert.match(readyHeadline, /环境已就绪/);
+  assert.match(readyHeadline, /进入 Playground/);
 });

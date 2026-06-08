@@ -545,10 +545,12 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.match(result.text, /Desktop health:/);
   assert.match(result.text, /Desktop health severity:/);
   assert.match(result.text, /Recommended next action:/);
+  assert.match(result.text, /Support snapshot headline:/);
   const jsonText = await readFile(result.jsonPath, "utf8");
   const payload = JSON.parse(jsonText);
   assert.equal(payload.exportedAt, "2026-06-07T12:34:56.789Z");
   assert.match(payload.summary, /Kiro\+\+ diagnostics summary/);
+  assert.match(payload.desktopHealthHeadline, /建议先查看 Quickstart/);
   assert.equal(payload.desktopHealth.severity, "warning");
   assert.match(payload.desktopHealth.summary, /需要关注/);
   assert.equal(payload.desktopHealthPrimaryAction.actionLabel, "查看 Quickstart");
@@ -563,6 +565,7 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   const manifest = JSON.parse(manifestText);
   assert.equal(manifest.exportedAt, "2026-06-07T12:34:56.789Z");
   assert.match(manifest.bundleName, /^kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z$/);
+  assert.match(manifest.desktopHealthHeadline, /建议先查看 Quickstart/);
   assert.equal(manifest.desktopHealth.severity, "warning");
   assert.equal(typeof manifest.desktopHealth.itemCount, "number");
   assert.equal(manifest.desktopHealthPrimaryAction.actionLabel, "查看 Quickstart");
