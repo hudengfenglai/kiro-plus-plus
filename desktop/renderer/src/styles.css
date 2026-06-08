@@ -418,6 +418,45 @@ pre {
   flex-wrap: wrap;
 }
 
+.historical-banner {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-soft-bg) 88%, var(--accent) 12%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.historical-banner-copy {
+  display: grid;
+  gap: 4px;
+}
+
+.historical-banner-copy strong {
+  display: block;
+}
+
+.historical-banner-copy p,
+.historical-banner-copy small {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.historical-banner-copy code {
+  font-family: "Cascadia Code", "Consolas", monospace;
+  font-size: 12px;
+}
+
+.historical-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .eyebrow,
 .panel-tag,
 .tiny-meta,
@@ -1283,6 +1322,90 @@ pre {
   gap: 10px;
 }
 
+.playground-history-lock {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-soft-bg) 90%, var(--accent) 10%);
+  display: grid;
+  gap: 10px;
+}
+
+.playground-history-lock-copy strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.playground-history-lock-copy p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.diagnostics-history-lock {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+  display: grid;
+  gap: 10px;
+}
+
+.diagnostics-history-lock-copy strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.diagnostics-history-lock-copy p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.workbench-history-banner {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-soft-bg) 90%, var(--accent) 10%);
+  display: grid;
+  gap: 10px;
+}
+
+.workbench-history-banner-copy strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.workbench-history-banner-copy p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.workbench-history-hint {
+  margin: 0 0 12px;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+
+.diagnostics-source-row {
+  margin-bottom: 12px;
+}
+
+.output-toolbar {
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.output-toolbar .tiny-meta {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
 .result-head {
   display: flex;
   align-items: center;
@@ -1388,7 +1511,8 @@ pre {
   .filter-row,
   .field-grid,
   .hero-callout,
-  .issue-row {
+  .issue-row,
+  .historical-banner {
     grid-template-columns: 1fr;
   }
 }

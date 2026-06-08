@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 
@@ -40,6 +40,45 @@ function toDiagnosticsLogSnapshot(entry) {
     durationMs: typeof entry.durationMs === "number" ? entry.durationMs : undefined,
     bodyBytes: typeof entry.bodyBytes === "number" ? entry.bodyBytes : undefined
   };
+}
+
+function normalizeRequestLogEntry(entry) {
+  if (!entry || typeof entry !== "object") {
+    return null;
+  }
+
+  if (typeof entry.operation !== "string" || typeof entry.status !== "number") {
+    return null;
+  }
+
+  return {
+    at: typeof entry.at === "string" ? entry.at : "",
+    operation: entry.operation,
+    status: entry.status,
+    durationMs: typeof entry.durationMs === "number" ? entry.durationMs : undefined,
+    requestId: entry.requestId ? String(entry.requestId) : undefined,
+    bodyBytes: typeof entry.bodyBytes === "number" ? entry.bodyBytes : undefined,
+    headers: entry.headers && typeof entry.headers === "object" ? entry.headers : undefined
+  };
+}
+
+async function readBundleRequestLogs(requestsPath) {
+  if (!requestsPath) {
+    return [];
+  }
+
+  try {
+    const raw = await readFile(requestsPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map(normalizeRequestLogEntry)
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function formatRecentRequestSnapshot(entries = []) {
@@ -568,7 +607,7 @@ export class DesktopRuntime {
         providerSecretError = error;
       }
     }
-    const [kiroDetection, recentLogs, diagnose] = await Promise.all([
+    const [kiroDetection, liveRecentLogs, diagnose] = await Promise.all([
       this.kiroService.detectKiro(),
       this.logService.tailRequests(10),
       this.kiroService.diagnose().catch(() => null)
@@ -592,9 +631,52 @@ export class DesktopRuntime {
 
     const exportHistory = settings.runtime?.exportHistory ?? [];
     const selectedExportBundleName = settings.runtime?.selectedExportBundleName ?? null;
+    const latestLiveBundle = settings.runtime?.lastExportBundle ?? null;
     const selectedBundle = exportHistory.find((item) => item.bundleName === selectedExportBundleName)
-      ?? settings.runtime?.lastExportBundle
+      ?? latestLiveBundle
       ?? null;
+    const useHistoricalBundleLogs = Boolean(
+      selectedBundle
+      && latestLiveBundle
+      && selectedBundle.bundleName !== latestLiveBundle.bundleName
+    );
+    const recentLogs = useHistoricalBundleLogs
+      ? await readBundleRequestLogs(selectedBundle?.requestsPath)
+      : liveRecentLogs;
+    const recentLogsSource = useHistoricalBundleLogs
+      ? {
+        kind: "bundle",
+        bundleName: selectedBundle?.bundleName
+      }
+      : {
+        kind: "live"
+      };
+    const diagnosticsSummarySource = selectedBundle
+      ? {
+        kind: "bundle",
+        bundleName: selectedBundle.bundleName
+      }
+      : {
+        kind: "live"
+      };
+    const diagnosticsSummary = selectedBundle?.text
+      ?? formatDiagnosticsSummary(sanitizeStateForShare({
+        settings,
+        proxyStatus,
+        kiroDetection,
+        diagnose,
+        recentLogs,
+        readinessIssues,
+        bootstrap,
+        exportHistory,
+        lastExportBundle: selectedBundle,
+        lastSuccessfulProviderTest: settings.lastSuccessfulProviderTest,
+        lastAppliedKiroBackup: settings.lastAppliedKiroBackup,
+        lastLaunchAttempt: settings.runtime?.lastLaunchAttempt ?? null,
+        lastBootstrapAttempt: settings.runtime?.lastBootstrapAttempt ?? null,
+        recentLogsSource,
+        diagnosticsSummarySource
+      }));
 
     return {
       settings,
@@ -602,6 +684,9 @@ export class DesktopRuntime {
       kiroDetection,
       diagnose,
       recentLogs,
+      recentLogsSource,
+      diagnosticsSummarySource,
+      diagnosticsSummary,
       bootstrap,
       readinessIssues,
       lastSuccessfulProviderTest: settings.lastSuccessfulProviderTest,

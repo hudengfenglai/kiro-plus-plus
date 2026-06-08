@@ -20,6 +20,7 @@ import type {
   AppMeta,
   AppState,
   DiagnosticsExportBundle,
+  DiagnosticsSummarySource,
   DiagnosticsLogSnapshot,
   LaunchAttempt,
   PlaygroundResult,
@@ -88,6 +89,13 @@ const emptyState: AppState = {
   },
   diagnose: null,
   recentLogs: [],
+  recentLogsSource: {
+    kind: "live"
+  },
+  diagnosticsSummarySource: {
+    kind: "live"
+  },
+  diagnosticsSummary: "",
   bootstrap: {
     recommendedTab: "providers",
     steps: []
@@ -363,6 +371,102 @@ function buildSupportSnapshotText({
   ].filter(Boolean).join("\n");
 }
 
+function buildOutputTimelineText(entries: ActionEntry[]) {
+  if (!entries.length) {
+    return [
+      "Kiro++ current session output",
+      "Entries: 0",
+      "No actions have been recorded in this desktop session yet."
+    ].join("\n");
+  }
+
+  return [
+    "Kiro++ current session output",
+    `Entries: ${entries.length}`,
+    ...entries.map((entry, index) =>
+      [
+        `#${index + 1} [${entry.tone}] ${entry.title}`,
+        `at: ${entry.at}`,
+        entry.detail
+      ].join("\n")
+    )
+  ].join("\n\n");
+}
+
+function buildOutputShareText({
+  entries,
+  viewingHistoricalBundle,
+  currentBundleName,
+  selectedProviderLabel,
+  proxyEndpoint,
+  proxyState,
+  isByokEnabled
+}: {
+  entries: ActionEntry[];
+  viewingHistoricalBundle: boolean;
+  currentBundleName: string | null;
+  selectedProviderLabel: string;
+  proxyEndpoint: string | null;
+  proxyState: string;
+  isByokEnabled: boolean;
+}) {
+  return [
+    "Kiro++ session share",
+    `Mode: ${viewingHistoricalBundle ? "historical bundle" : "live session"}`,
+    `Provider: ${selectedProviderLabel}`,
+    `BYOK: ${isByokEnabled ? "enabled" : "disabled"}`,
+    `Proxy: ${proxyState}${proxyEndpoint ? ` (${proxyEndpoint})` : ""}`,
+    currentBundleName ? `Bundle: ${currentBundleName}` : null,
+    "",
+    buildOutputTimelineText(entries)
+  ].filter(Boolean).join("\n");
+}
+
+function buildWorkbenchShareText({
+  bundleName,
+  recentLogsSource,
+  diagnosticsSummarySource,
+  diagnosticsSummary,
+  outputShareText,
+  outputCount,
+  outputSessionStartedAt,
+  latestFailure,
+  latestSuccess
+}: {
+  bundleName: string | null;
+  recentLogsSource: { kind: "live" | "bundle"; bundleName?: string };
+  diagnosticsSummarySource: { kind: "live" | "bundle"; bundleName?: string };
+  diagnosticsSummary: string;
+  outputShareText: string;
+  outputCount: number;
+  outputSessionStartedAt: null | string;
+  latestFailure: DiagnosticsLogSnapshot | RequestLogEntry | null;
+  latestSuccess: DiagnosticsLogSnapshot | RequestLogEntry | null;
+}) {
+  return [
+    "Kiro++ workbench share",
+    bundleName ? `Selected bundle: ${bundleName}` : "Selected bundle: none",
+    recentLogsSource.kind === "bundle"
+      ? `Logs source: bundle (${recentLogsSource.bundleName ?? "unknown"})`
+      : "Logs source: live",
+    diagnosticsSummarySource.kind === "bundle"
+      ? `Diagnostics source: bundle (${diagnosticsSummarySource.bundleName ?? "unknown"})`
+      : "Diagnostics source: live",
+    outputCount > 0
+      ? `Output session: ${outputCount} entries since ${outputSessionStartedAt ?? "-"}`
+      : "Output session: no entries in current desktop session",
+    "",
+    buildLogShareText(latestFailure, "failure"),
+    "",
+    buildLogShareText(latestSuccess, "success"),
+    "",
+    "Diagnostics summary:",
+    diagnosticsSummary || "暂无诊断摘要",
+    "",
+    outputShareText
+  ].join("\n");
+}
+
 function collectUnavailableReasons(actions: Record<string, { enabled: boolean; reason: string | null }>) {
   return Array.from(
     new Set(
@@ -454,7 +558,6 @@ export function App() {
     errorOnly: false
   });
   const [logRows, setLogRows] = useState<AppState["recentLogs"]>([]);
-  const [diagnosticsSummary, setDiagnosticsSummary] = useState("");
   const [actionEntries, setActionEntries] = useState<ActionEntry[]>([]);
   const [playgroundPrompt, setPlaygroundPrompt] = useState("请简要说明当前模型是否可用，并返回一句中文结论。");
   const [playgroundProviderId, setPlaygroundProviderId] = useState("");
@@ -493,12 +596,14 @@ export function App() {
 
   const selectedProviderLabel = selectedProvider?.label ?? "未配置";
   const primaryIssue = state.readinessIssues[0] ?? null;
+  const latestLiveExportBundle = state.settings.runtime.lastExportBundle ?? null;
 
   const viewingHistoricalBundle = Boolean(
     lastExportBundle
-    && state.lastExportBundle
-    && lastExportBundle.bundleName !== state.lastExportBundle.bundleName
+    && latestLiveExportBundle
+    && lastExportBundle.bundleName !== latestLiveExportBundle.bundleName
   );
+  const recentLogsFromHistoricalBundle = state.recentLogsSource.kind === "bundle";
 
   const latestFailure = useMemo(
     () => {
@@ -560,6 +665,7 @@ export function App() {
     () => [...actionEntries].sort((a, b) => (a.at < b.at ? 1 : -1)),
     [actionEntries]
   );
+  const outputSessionStartedAt = outputEntries.at(-1)?.at ?? null;
 
   const exportSummary = useMemo(() => {
     if (!lastExportBundle) return null;
@@ -581,6 +687,17 @@ export function App() {
     () => state.exportHistory ?? [],
     [state.exportHistory]
   );
+  const playgroundLockedByHistory = viewingHistoricalBundle;
+
+  const primaryWorkbenchActionLabel = viewingHistoricalBundle
+    ? "回到实时后继续"
+    : (quickstartSummary.nextItem?.actionLabel ?? "去做验证");
+  const secondaryWorkbenchActionLabel = viewingHistoricalBundle
+    ? "回到实时工作区"
+    : (quickstartSummary.isComplete ? "打开工作区" : "继续设置");
+  const launchWorkbenchActionLabel = viewingHistoricalBundle
+    ? "回到实时后启动 Kiro"
+    : quickstartSummary.launchActionLabel;
 
   const selectedProviderModels = useMemo(
     () => parseModelsText(modelsText, selectedProvider?.models ?? []),
@@ -619,7 +736,6 @@ export function App() {
 
     setState(nextState);
     setLogRows(nextState.recentLogs);
-    setDiagnosticsSummary(nextSelectedBundle?.text || summary);
     setLastExportBundle(nextSelectedBundle);
 
     const current = nextState.settings.providers.find((provider) => provider.id === nextState.settings.selectedProviderId)
@@ -682,6 +798,69 @@ export function App() {
 
   function pushOutput(title: string, detail: string, tone: ActionEntry["tone"]) {
     setActionEntries((previous) => [makeActionEntry(title, detail, tone), ...previous].slice(0, 12));
+  }
+
+  function clearOutputEntries() {
+    setActionEntries([]);
+    setStatus("当前会话输出已清空。");
+    setStatusDetail("");
+  }
+
+  async function copyOutputTimeline() {
+    const text = buildOutputShareText({
+      entries: outputEntries,
+      viewingHistoricalBundle,
+      currentBundleName: lastExportBundle?.bundleName ?? null,
+      selectedProviderLabel,
+      proxyEndpoint: state.proxyStatus.endpoint,
+      proxyState: proxyStateLabels[state.proxyStatus.state],
+      isByokEnabled: state.settings.isByokEnabled
+    });
+    await runAction(
+      async () => {
+        await writeClipboardText(text);
+        return text;
+      },
+      {
+        pending: "正在复制当前会话输出...",
+        success: "当前会话输出已复制。",
+        afterFocus: "status"
+      }
+    );
+  }
+
+  async function copyWorkbenchSnapshot() {
+    const outputShareText = buildOutputShareText({
+      entries: outputEntries,
+      viewingHistoricalBundle,
+      currentBundleName: lastExportBundle?.bundleName ?? null,
+      selectedProviderLabel,
+      proxyEndpoint: state.proxyStatus.endpoint,
+      proxyState: proxyStateLabels[state.proxyStatus.state],
+      isByokEnabled: state.settings.isByokEnabled
+    });
+    const text = buildWorkbenchShareText({
+      bundleName: lastExportBundle?.bundleName ?? null,
+      recentLogsSource: state.recentLogsSource,
+      diagnosticsSummarySource: state.diagnosticsSummarySource,
+      diagnosticsSummary: state.diagnosticsSummary,
+      outputShareText,
+      outputCount: outputEntries.length,
+      outputSessionStartedAt,
+      latestFailure,
+      latestSuccess
+    });
+    await runAction(
+      async () => {
+        await writeClipboardText(text);
+        return text;
+      },
+      {
+        pending: "正在复制当前工作台状态...",
+        success: "当前工作台状态已复制。",
+        afterFocus: "logs"
+      }
+    );
   }
 
   async function runAction(
@@ -941,6 +1120,10 @@ export function App() {
   }
 
   async function handlePlaygroundSend() {
+    if (playgroundLockedByHistory) {
+      await handleResumeLivePlayground();
+      return;
+    }
     if (!providerForPlayground || !playgroundModelId.trim()) return;
     const result = await runAction(
       () =>
@@ -964,9 +1147,8 @@ export function App() {
   async function copyDiagnosticsSummary() {
     await runAction(
       async () => {
-        const text = diagnosticsSummary || await requireDesktopApi().exportDiagnostics();
+        const text = state.diagnosticsSummary || await requireDesktopApi().exportDiagnostics();
         await writeClipboardText(text);
-        setDiagnosticsSummary(text);
         return text;
       },
       {
@@ -988,9 +1170,6 @@ export function App() {
     );
     const typed = result as DiagnosticsExportBundle;
     setLastExportBundle(typed);
-    if (typed.text) {
-      setDiagnosticsSummary(typed.text);
-    }
     if (typed.bundleDir) {
       setStatusDetail(
         [
@@ -1016,9 +1195,6 @@ export function App() {
     );
     const typed = result as DiagnosticsExportBundle;
     setLastExportBundle(typed);
-    if (typed.text) {
-      setDiagnosticsSummary(typed.text);
-    }
     setStatusDetail(
       [
         `导出目录：${typed.bundleDir}`,
@@ -1247,12 +1423,27 @@ export function App() {
       const typed = result as AppState;
       setState(typed);
       setLastExportBundle(typed.lastExportBundle ?? null);
-      setDiagnosticsSummary(typed.lastExportBundle?.text || diagnosticsSummary);
       return typed;
     });
   }
 
-  async function handleQuickstartAction(item: QuickstartItem) {
+  async function ensureLiveSupportBundleContext(reason: string) {
+    if (!viewingHistoricalBundle) {
+      return true;
+    }
+    const latestBundle = state.lastExportBundle ?? exportHistory[0] ?? null;
+    if (!latestBundle) {
+      setStatus("当前正在查看历史支持包，但没有可切换的最新支持包。");
+      return false;
+    }
+    const nextState = await selectExportBundleState(latestBundle);
+    const liveBundleName = nextState.lastExportBundle?.bundleName ?? latestBundle.bundleName;
+    setStatus(`已回到最新支持包：${liveBundleName}，继续${reason}。`);
+    setStatusDetail("");
+    return true;
+  }
+
+  async function performQuickstartAction(item: QuickstartItem) {
     switch (item.actionKind) {
       case "fetch-models":
         return handleFetchModels();
@@ -1288,11 +1479,23 @@ export function App() {
     }
   }
 
+  async function handleQuickstartAction(item: QuickstartItem) {
+    const ready = await ensureLiveSupportBundleContext(item.actionLabel);
+    if (!ready) {
+      return;
+    }
+    return performQuickstartAction(item);
+  }
+
   async function handleSetupSummaryAction(item: {
     id: string;
     source: "readiness" | "quickstart";
     focus: ConsoleFocus;
   }) {
+    const ready = await ensureLiveSupportBundleContext("继续设置");
+    if (!ready) {
+      return;
+    }
     if (item.source === "readiness") {
       const issue = state.readinessIssues.find((entry) => entry.key === item.id);
       if (issue) {
@@ -1312,14 +1515,45 @@ export function App() {
   }
 
   async function handleLaunchEntry() {
+    const ready = await ensureLiveSupportBundleContext("启动 Kiro");
+    if (!ready) {
+      return;
+    }
     if (!quickstartSummary.isComplete && quickstartSummary.nextItem) {
-      return handleQuickstartAction(quickstartSummary.nextItem);
+      return performQuickstartAction(quickstartSummary.nextItem);
     }
     return runAction(() => requireDesktopApi().launchKiroWithProxy(), {
       pending: "正在启动 Kiro++ 入口...",
       success: "Kiro 启动指令已发出。",
       afterFocus: "kiro"
     });
+  }
+
+  async function handlePrimaryWorkbenchAction() {
+    if (quickstartSummary.nextItem) {
+      return handleQuickstartAction(quickstartSummary.nextItem);
+    }
+    const ready = await ensureLiveSupportBundleContext("打开实时验证面板");
+    if (!ready) {
+      return;
+    }
+    openConsole("playground");
+  }
+
+  async function handleSecondaryWorkbenchAction() {
+    const ready = await ensureLiveSupportBundleContext("返回当前工作区");
+    if (!ready) {
+      return;
+    }
+    openConsole(quickstartSummary.nextItem?.focus ?? "status");
+  }
+
+  async function handleResumeLivePlayground() {
+    const ready = await ensureLiveSupportBundleContext("返回实时验证区");
+    if (!ready) {
+      return;
+    }
+    openConsole("playground");
   }
 
   async function clearExportHistory() {
@@ -1348,7 +1582,6 @@ export function App() {
     const typed = result as AppState;
     setState(typed);
     setLastExportBundle(typed.lastExportBundle ?? null);
-    setDiagnosticsSummary(typed.lastExportBundle?.text || await requireDesktopApi().exportDiagnostics());
   }
 
   async function openResource(resourceId: ResourceKey) {
@@ -1590,19 +1823,50 @@ export function App() {
           </div>
           <button
             className="ghost-button"
-            onClick={() => quickstartSummary.nextItem ? handleQuickstartAction(quickstartSummary.nextItem) : openConsole("playground")}
+            onClick={() => handlePrimaryWorkbenchAction()}
           >
-            {quickstartSummary.nextItem?.actionLabel ?? "去做验证"}
+            {primaryWorkbenchActionLabel}
           </button>
           <button className="ghost-button" onClick={toggleTheme}>
             {theme === "dark" ? "浅色主题" : "深色主题"}
           </button>
           <button className="ghost-button" onClick={() => setView("home")}>返回首页</button>
           <button onClick={() => handleLaunchEntry()}>
-            {quickstartSummary.launchActionLabel}
+            {launchWorkbenchActionLabel}
           </button>
         </div>
       </header>
+
+      {viewingHistoricalBundle && lastExportBundle ? (
+        <section className="historical-banner">
+          <div className="historical-banner-copy">
+            <span className="snapshot-label">历史支持包</span>
+            <strong>当前正在查看历史支持快照</strong>
+            <p>
+              当前的诊断摘要、最近失败/成功记录和推荐动作来自
+              {" "}
+              <code>{exportSummary?.bundleName ?? basename(lastExportBundle.bundleDir)}</code>
+              {" "}
+              ，不是实时运行状态。
+            </p>
+            <small>导出时间：{formatTime(lastExportBundle.exportedAt ?? null)}</small>
+          </div>
+          <div className="historical-banner-actions">
+            <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
+              回到最新支持包
+            </button>
+            <button
+              className="ghost-button compact-button"
+              onClick={() => openExportArtifact(lastExportBundle.requestsPath ?? null, "请求文件")}
+            >
+              打开请求文件
+            </button>
+            <button className="ghost-button compact-button" onClick={copySupportSnapshot}>
+              复制支持快照
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <main className="workbench-grid">
         <aside className={`rail left ${focus === "providers" || focus === "kiro" ? "focused" : ""}`}>
@@ -1921,15 +2185,15 @@ export function App() {
                 <div className="hero-progress-actions">
                   <button
                     className="ghost-button compact-button"
-                    onClick={() => quickstartSummary.nextItem ? handleQuickstartAction(quickstartSummary.nextItem) : openConsole("playground")}
+                    onClick={() => handlePrimaryWorkbenchAction()}
                   >
-                    {quickstartSummary.nextItem?.actionLabel ?? "去做验证"}
+                    {primaryWorkbenchActionLabel}
                   </button>
                   <button
                     className="ghost-button compact-button"
-                    onClick={() => openConsole(quickstartSummary.nextItem?.focus ?? "status")}
+                    onClick={() => handleSecondaryWorkbenchAction()}
                   >
-                    继续设置
+                    {secondaryWorkbenchActionLabel}
                   </button>
                 </div>
               </div>
@@ -1944,15 +2208,15 @@ export function App() {
                 <div className="setup-banner-actions">
                   <button
                     className="ghost-button compact-button"
-                    onClick={() => quickstartSummary.nextItem ? handleQuickstartAction(quickstartSummary.nextItem) : openConsole("playground")}
+                    onClick={() => handlePrimaryWorkbenchAction()}
                   >
-                    {quickstartSummary.nextItem?.actionLabel ?? "去做验证"}
+                    {primaryWorkbenchActionLabel}
                   </button>
                   <button
                     className="ghost-button compact-button"
-                    onClick={() => openConsole(quickstartSummary.nextItem?.focus ?? "status")}
+                    onClick={() => handleSecondaryWorkbenchAction()}
                   >
-                    {quickstartSummary.isComplete ? "打开工作区" : "继续设置"}
+                    {secondaryWorkbenchActionLabel}
                   </button>
                 </div>
               </div>
@@ -2212,29 +2476,66 @@ export function App() {
                 </div>
               </div>
 
+              {viewingHistoricalBundle ? (
+                <div className="workbench-history-banner">
+                  <div className="workbench-history-banner-copy">
+                    <strong>当前工作区正在查看历史支持包快照</strong>
+                    <p>中栏内容会优先显示这份历史快照相关的摘要与辅助信息；涉及真实环境的动作会先回到最新支持包再执行。</p>
+                  </div>
+                  <div className="mini-actions">
+                    <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
+                      回到最新支持包
+                    </button>
+                    <button className="ghost-button compact-button" onClick={copySupportSnapshot}>
+                      复制支持快照
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
               {workbenchTab === "logs" && (
                 <div className="workbench-body">
-                  <div className="filter-row">
-                    <input
-                      placeholder="按 operation 过滤"
-                      value={logFilters.operation}
-                      onChange={(event) => setLogFilters((previous) => ({ ...previous, operation: event.target.value }))}
-                    />
-                    <input
-                      placeholder="HTTP 状态码"
-                      value={logFilters.status}
-                      onChange={(event) => setLogFilters((previous) => ({ ...previous, status: event.target.value }))}
-                    />
-                    <label className="checkbox">
+                  {recentLogsFromHistoricalBundle ? (
+                    <p className="workbench-history-hint">
+                      当前日志列表已切换到历史支持包
+                      {" "}
+                      <code>{state.recentLogsSource.bundleName ?? lastExportBundle?.bundleName ?? "unknown"}</code>
+                      {" "}
+                      里的请求快照；这不是实时代理日志。
+                    </p>
+                  ) : null}
+                  {!recentLogsFromHistoricalBundle ? (
+                    <div className="filter-row">
                       <input
-                        type="checkbox"
-                        checked={logFilters.errorOnly}
-                        onChange={(event) => setLogFilters((previous) => ({ ...previous, errorOnly: event.target.checked }))}
+                        placeholder="按 operation 过滤"
+                        value={logFilters.operation}
+                        onChange={(event) => setLogFilters((previous) => ({ ...previous, operation: event.target.value }))}
                       />
-                      <span>仅失败</span>
-                    </label>
-                    <button className="ghost-button" onClick={() => refreshLogs()}>刷新日志</button>
-                  </div>
+                      <input
+                        placeholder="HTTP 状态码"
+                        value={logFilters.status}
+                        onChange={(event) => setLogFilters((previous) => ({ ...previous, status: event.target.value }))}
+                      />
+                      <label className="checkbox">
+                        <input
+                          type="checkbox"
+                          checked={logFilters.errorOnly}
+                          onChange={(event) => setLogFilters((previous) => ({ ...previous, errorOnly: event.target.checked }))}
+                        />
+                        <span>仅失败</span>
+                      </label>
+                      <button className="ghost-button" onClick={() => refreshLogs()}>刷新日志</button>
+                    </div>
+                  ) : (
+                    <div className="mini-actions">
+                      <button className="ghost-button compact-button" onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}>
+                        打开请求文件
+                      </button>
+                      <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
+                        回到最新支持包
+                      </button>
+                    </div>
+                  )}
                   <div className="log-list">
                     {logRows.map((entry) => (
                       <article key={`${entry.at}-${entry.requestId ?? entry.operation}`} className={`log-row ${entry.status >= 400 ? "error" : ""}`}>
@@ -2252,8 +2553,23 @@ export function App() {
 
               {workbenchTab === "output" && (
                 <div className="workbench-body">
+                  {viewingHistoricalBundle ? (
+                    <p className="workbench-history-hint">这里显示的是当前桌面会话动作输出，不是历史支持包执行记录；历史支持信息请以支持包摘要和请求文件为准。</p>
+                  ) : null}
+                  <div className="summary-actions output-toolbar">
+                    <span className="snapshot-label">来源：当前桌面会话</span>
+                    <span className="tiny-meta">
+                      {outputEntries.length > 0
+                        ? `本次会话 ${formatTime(outputSessionStartedAt)} 起，累计 ${outputEntries.length} 条`
+                        : "仅记录本次打开控制台后的动作"}
+                    </span>
+                    <button className="ghost-button" onClick={copyOutputTimeline}>复制会话输出</button>
+                    <button className="ghost-button" onClick={clearOutputEntries}>清空输出</button>
+                  </div>
                   <div className="output-list">
-                    {outputEntries.length === 0 ? <p className="empty-row">动作输出会显示在这里。</p> : null}
+                    {outputEntries.length === 0 ? (
+                      <p className="empty-row">当前还没有会话输出。你在本次打开 Kiro++ Console 期间执行的测试、配置、诊断和导出动作会显示在这里。</p>
+                    ) : null}
                     {outputEntries.map((entry) => (
                       <article key={entry.id} className={`output-row ${entry.tone}`}>
                         <div className="output-meta">
@@ -2269,7 +2585,18 @@ export function App() {
 
               {workbenchTab === "diagnostics" && (
                 <div className="workbench-body">
+                  {viewingHistoricalBundle ? (
+                    <p className="workbench-history-hint">当前诊断摘要来自已选中的历史支持包；复制、查看和推荐动作都会沿用这份历史快照上下文。</p>
+                  ) : null}
+                  <div className="mini-actions diagnostics-source-row">
+                    <span className="snapshot-label">
+                      {state.diagnosticsSummarySource.kind === "bundle"
+                        ? `摘要来源：${state.diagnosticsSummarySource.bundleName}`
+                        : "摘要来源：当前实时诊断"}
+                    </span>
+                  </div>
                   <div className="summary-actions">
+                    <button className="ghost-button" onClick={copyWorkbenchSnapshot}>复制当前工作台状态</button>
                     <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制脱敏摘要</button>
                     <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
                     <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>
@@ -2373,7 +2700,7 @@ export function App() {
                       <p className="export-hint">导出内容已默认脱敏，适合发到 GitHub Issue、LinuxDO 或群内排错。</p>
                     </section>
                   ) : null}
-                  <pre className="summary-block">{diagnosticsSummary || "诊断摘要将在这里显示。"}</pre>
+                  <pre className="summary-block">{state.diagnosticsSummary || "诊断摘要将在这里显示。"}</pre>
                 </div>
               )}
             </section>
@@ -2416,9 +2743,33 @@ export function App() {
                   </div>
                 </div>
 
+                {playgroundLockedByHistory ? (
+                  <div className="playground-history-lock">
+                    <div className="playground-history-lock-copy">
+                      <strong>当前正在查看历史支持包，已暂停实时模型验证</strong>
+                      <p>右侧的 Provider、模型和 prompt 仅保留为历史参考。要发送真实请求，请先回到最新支持包。</p>
+                    </div>
+                    <div className="mini-actions">
+                      <button className="ghost-button compact-button" onClick={handleResumeLivePlayground}>
+                        回到实时验证区
+                      </button>
+                      <button
+                        className="ghost-button compact-button"
+                        onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}
+                      >
+                        打开历史请求
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
                 <label className="field">
                   <span>provider</span>
-                  <select value={playgroundProviderId} onChange={(event) => setPlaygroundProviderId(event.target.value)}>
+                  <select
+                    value={playgroundProviderId}
+                    disabled={playgroundLockedByHistory}
+                    onChange={(event) => setPlaygroundProviderId(event.target.value)}
+                  >
                     {state.settings.providers.map((provider) => (
                       <option key={provider.id} value={provider.id}>{provider.label}</option>
                     ))}
@@ -2427,7 +2778,11 @@ export function App() {
 
                 <label className="field">
                   <span>model</span>
-                  <select value={playgroundModelId} onChange={(event) => setPlaygroundModelId(event.target.value)}>
+                  <select
+                    value={playgroundModelId}
+                    disabled={playgroundLockedByHistory}
+                    onChange={(event) => setPlaygroundModelId(event.target.value)}
+                  >
                     {(providerForPlayground?.models ?? []).map((model) => (
                       <option key={model.id} value={model.id}>{model.id}</option>
                     ))}
@@ -2436,23 +2791,38 @@ export function App() {
 
                 <label className="field">
                   <span>prompt</span>
-                  <textarea value={playgroundPrompt} onChange={(event) => setPlaygroundPrompt(event.target.value)} />
+                  <textarea
+                    value={playgroundPrompt}
+                    readOnly={playgroundLockedByHistory}
+                    onChange={(event) => setPlaygroundPrompt(event.target.value)}
+                  />
                 </label>
 
                 <div className="button-stack">
-                  <button onClick={handlePlaygroundSend}>发送验证</button>
+                  <button onClick={handlePlaygroundSend}>
+                    {playgroundLockedByHistory ? "回到实时后验证" : "发送验证"}
+                  </button>
                 </div>
 
                 <div className="playground-result">
                   <div className="result-head">
-                    <strong>{playgroundResult?.ok ? "请求成功" : "等待请求"}</strong>
+                    <strong>
+                      {playgroundResult?.ok
+                        ? "请求成功"
+                        : (playgroundLockedByHistory ? "历史模式" : "等待请求")}
+                    </strong>
                     <small>{formatTime(playgroundResult?.requestedAt)}</small>
                   </div>
                   <dl className="kv-grid compact">
                     <div><dt>modelId</dt><dd>{playgroundResult?.modelId ?? (playgroundModelId || "未选择")}</dd></div>
                     <div><dt>latency</dt><dd>{playgroundResult ? `${playgroundResult.latencyMs} ms` : "-"}</dd></div>
                   </dl>
-                  <pre>{playgroundResult?.text ?? "发送后在这里显示模型返回文本。"}</pre>
+                  <pre>
+                    {playgroundResult?.text
+                      ?? (playgroundLockedByHistory
+                        ? "当前展示的是历史支持包上下文。回到最新支持包后，再在这里发起真实模型验证。"
+                        : "发送后在这里显示模型返回文本。")}
+                  </pre>
                 </div>
               </section>
 
@@ -2463,6 +2833,26 @@ export function App() {
                     <h2>伴随排错</h2>
                   </div>
                 </div>
+
+                {viewingHistoricalBundle ? (
+                  <div className="diagnostics-history-lock">
+                    <div className="diagnostics-history-lock-copy">
+                      <strong>当前 Diagnostics 来自历史支持包快照</strong>
+                      <p>失败/成功摘要和“查看详情”都基于这份历史支持包，不会直接跳到当前实时日志。</p>
+                    </div>
+                    <div className="mini-actions">
+                      <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
+                        回到最新支持包
+                      </button>
+                      <button
+                        className="ghost-button compact-button"
+                        onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}
+                      >
+                        打开历史请求
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="signal-stack">
                   <article className="signal-card error">
@@ -2485,7 +2875,7 @@ export function App() {
                   </article>
                 </div>
                 {viewingHistoricalBundle ? (
-                  <p className="export-hint">当前右侧摘要来自历史支持包快照；“查看详情”会打开该支持包的请求文件，不会跳到当前实时日志。</p>
+                  <p className="export-hint">当前右侧摘要来自历史支持包快照；复制摘要会复制历史上下文，查看详情会打开该支持包的请求文件。</p>
                 ) : null}
 
                 <div className="button-stack">

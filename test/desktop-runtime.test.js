@@ -587,6 +587,7 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.equal(state.lastExportBundle?.recommendedAction?.actionLabel, "查看 Quickstart");
   assert.equal(state.lastExportBundle?.latestFailure?.requestId, "demo-export");
   assert.equal(state.lastExportBundle?.summaryPath, result.summaryPath);
+  assert.match(state.diagnosticsSummary, /Recent requests \(redacted\)/);
   const reloadedSettings = await runtime.settingsStore.load();
   assert.equal(reloadedSettings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
   assert.equal(reloadedSettings.runtime.lastExportBundle?.summaryPath, result.summaryPath);
@@ -667,6 +668,15 @@ test("desktop runtime exports diagnostics to a zip support bundle", async () => 
 test("desktop runtime keeps latest support bundles in descending history order", async () => {
   const dir = await mkdtemp(join(tmpdir(), "kiro-plus-export-history-"));
   let savedSettings = normalizeAppSettings();
+  let recentLogSeed = [
+    {
+      at: "2026-06-08T08:59:00.000Z",
+      operation: "GenerateAssistantResponse",
+      status: 500,
+      requestId: "history-older",
+      durationMs: 120
+    }
+  ];
   const runtime = new DesktopRuntime({
     settingsStore: {
       load: async () => savedSettings,
@@ -705,7 +715,7 @@ test("desktop runtime keeps latest support bundles in descending history order",
       })
     },
     logService: {
-      tailRequests: async () => [],
+      tailRequests: async () => recentLogSeed,
       listRequests: async () => []
     },
     diagnosticsExportDir: dir,
@@ -720,6 +730,15 @@ test("desktop runtime keeps latest support bundles in descending history order",
   });
 
   await runtime.exportDiagnosticsToFile();
+  recentLogSeed = [
+    {
+      at: "2026-06-08T09:04:30.000Z",
+      operation: "GenerateCompletions",
+      status: 200,
+      requestId: "history-newer",
+      durationMs: 48
+    }
+  ];
   await runtime.exportDiagnosticsToFile();
 
   const state = await runtime.getState();
@@ -727,11 +746,26 @@ test("desktop runtime keeps latest support bundles in descending history order",
   assert.equal(state.exportHistory[0].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-05-00-000Z");
   assert.equal(state.exportHistory[1].bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
   assert.equal(state.lastExportBundle?.bundleName, state.exportHistory[0].bundleName);
+  assert.equal(state.recentLogs[0]?.requestId, "history-newer");
+  assert.equal(state.recentLogsSource.kind, "live");
+  assert.equal(state.diagnosticsSummarySource.kind, "bundle");
+  assert.equal(state.diagnosticsSummarySource.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-05-00-000Z");
+  assert.match(state.diagnosticsSummary, /history-newer/);
 
   const selected = await runtime.selectExportBundle("kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
   assert.equal(selected.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.equal(selected.recentLogs[0]?.requestId, "history-older");
+  assert.equal(selected.recentLogsSource.kind, "bundle");
+  assert.equal(selected.recentLogsSource.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.equal(selected.diagnosticsSummarySource.kind, "bundle");
+  assert.equal(selected.diagnosticsSummarySource.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.match(selected.diagnosticsSummary, /history-older/);
   const reloaded = await runtime.getState();
   assert.equal(reloaded.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
+  assert.equal(reloaded.recentLogs[0]?.requestId, "history-older");
+  assert.equal(reloaded.recentLogsSource.kind, "bundle");
+  assert.equal(reloaded.diagnosticsSummarySource.kind, "bundle");
+  assert.match(reloaded.diagnosticsSummary, /history-older/);
   assert.equal(savedSettings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T09-00-00-000Z");
 
   await rm(dir, { recursive: true, force: true });

@@ -131,6 +131,16 @@ export interface ReadinessIssue {
   action: string;
 }
 
+export interface RecentLogsSource {
+  kind: "live" | "bundle";
+  bundleName?: string;
+}
+
+export interface DiagnosticsSummarySource {
+  kind: "live" | "bundle";
+  bundleName?: string;
+}
+
 export interface AppState {
   settings: {
     selectedProviderId: string;
@@ -178,6 +188,9 @@ export interface AppState {
   };
   diagnose: KiroDiagnoseReport | null;
   recentLogs: RequestLogEntry[];
+  recentLogsSource: RecentLogsSource;
+  diagnosticsSummarySource: DiagnosticsSummarySource;
+  diagnosticsSummary: string;
   bootstrap: BootstrapState;
   readinessIssues: ReadinessIssue[];
   lastSuccessfulProviderTest: AppState["settings"]["lastSuccessfulProviderTest"];
