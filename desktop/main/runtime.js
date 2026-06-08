@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 
@@ -81,6 +81,61 @@ async function readBundleRequestLogs(requestsPath) {
   }
 }
 
+async function pathExists(targetPath) {
+  if (!targetPath) {
+    return false;
+  }
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function hydrateWorkbenchExportSnapshot(snapshot) {
+  if (!snapshot?.filePath) {
+    return snapshot ?? null;
+  }
+  return {
+    ...snapshot,
+    exists: await pathExists(snapshot.filePath)
+  };
+}
+
+async function hydrateWorkbenchExportHistory(history = []) {
+  return Promise.all(history.map((snapshot) => hydrateWorkbenchExportSnapshot(snapshot)));
+}
+
+async function hydrateDiagnosticsExportBundle(bundle) {
+  if (!bundle) {
+    return null;
+  }
+  const requiredEntries = [
+    ["bundleDir", bundle.bundleDir],
+    ["readmePath", bundle.readmePath],
+    ["summaryPath", bundle.summaryPath],
+    ["jsonPath", bundle.jsonPath],
+    ["requestsPath", bundle.requestsPath],
+    ["manifestPath", bundle.manifestPath]
+  ].filter(([, target]) => Boolean(target));
+  const checks = await Promise.all(requiredEntries.map(([, target]) => pathExists(target)));
+  const missingPaths = requiredEntries
+    .filter((_, index) => !checks[index])
+    .map(([label]) => label);
+  const zipExists = bundle.zipPath ? await pathExists(bundle.zipPath) : undefined;
+  return {
+    ...bundle,
+    exists: checks.every(Boolean),
+    missingPaths,
+    zipExists
+  };
+}
+
+async function hydrateDiagnosticsExportHistory(history = []) {
+  return Promise.all(history.map((bundle) => hydrateDiagnosticsExportBundle(bundle)));
+}
+
 function formatRecentRequestSnapshot(entries = []) {
   if (!entries.length) {
     return "Recent requests (redacted)\n- none";
@@ -115,6 +170,24 @@ function formatSupportBundleReadme() {
     "- Local filesystem paths inside exported files are redacted by default for safer public sharing.",
     "- Share this bundle only when you are comfortable revealing model ids, endpoint metadata, and request timing.",
     "- This bundle is generated locally by Kiro++."
+  ].join("\n");
+}
+
+function formatWorkbenchSnapshotReadme() {
+  return [
+    "# Kiro++ Workbench Snapshot",
+    "",
+    "This file is exported locally from the current desktop workbench.",
+    "",
+    "It can be attached to:",
+    "- GitHub issues",
+    "- LinuxDO support posts",
+    "- personal troubleshooting notes",
+    "",
+    "Notes:",
+    "- The markdown body is generated from the current renderer state.",
+    "- Secrets should already be redacted before export.",
+    "- Historical-bundle mode information is preserved as text when applicable."
   ].join("\n");
 }
 
@@ -551,6 +624,74 @@ export class DesktopRuntime {
     });
   }
 
+  async saveLastWorkbenchExport(snapshot) {
+    const settings = await this.settingsStore.load();
+    const previousHistory = settings.runtime?.workbenchExportHistory ?? [];
+    const nextHistory = [
+      snapshot,
+      ...previousHistory.filter((item) => item.filePath !== snapshot.filePath)
+    ].slice(0, 5);
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        lastWorkbenchExport: snapshot,
+        workbenchExportHistory: nextHistory
+      }
+    });
+  }
+
+  async deleteWorkbenchExport(filePath) {
+    const settings = await this.settingsStore.load();
+    const workbenchExportHistory = settings.runtime?.workbenchExportHistory ?? [];
+    const nextHistory = workbenchExportHistory.filter((item) => item.filePath !== filePath);
+    if (nextHistory.length === workbenchExportHistory.length) {
+      throw new Error(`未找到工作台快照：${filePath}`);
+    }
+    const current = settings.runtime?.lastWorkbenchExport ?? null;
+    const nextLastWorkbenchExport = current?.filePath === filePath
+      ? (nextHistory[0] ?? null)
+      : current;
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        lastWorkbenchExport: nextLastWorkbenchExport,
+        workbenchExportHistory: nextHistory
+      }
+    });
+    return this.getState();
+  }
+
+  async clearWorkbenchExportHistory() {
+    const settings = await this.settingsStore.load();
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        lastWorkbenchExport: null,
+        workbenchExportHistory: []
+      }
+    });
+    return this.getState();
+  }
+
+  async clearMissingWorkbenchExportHistory() {
+    const state = await this.getState();
+    const settings = await this.settingsStore.load();
+    const nextHistory = state.workbenchExportHistory.filter((item) => item.exists !== false);
+    const nextLastWorkbenchExport = nextHistory[0] ?? null;
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        lastWorkbenchExport: nextLastWorkbenchExport,
+        workbenchExportHistory: nextHistory
+      }
+    });
+    return this.getState();
+  }
+
   async selectExportBundle(bundleName) {
     const settings = await this.settingsStore.load();
     const exportHistory = settings.runtime?.exportHistory ?? [];
@@ -629,10 +770,18 @@ export class DesktopRuntime {
       diagnose
     });
 
-    const exportHistory = settings.runtime?.exportHistory ?? [];
+    const hydratedExportHistory = await hydrateDiagnosticsExportHistory(
+      settings.runtime?.exportHistory ?? []
+    );
+    const hydratedWorkbenchExportHistory = await hydrateWorkbenchExportHistory(
+      settings.runtime?.workbenchExportHistory ?? []
+    );
+    const hydratedLastWorkbenchExport = await hydrateWorkbenchExportSnapshot(
+      settings.runtime?.lastWorkbenchExport ?? null
+    );
     const selectedExportBundleName = settings.runtime?.selectedExportBundleName ?? null;
-    const latestLiveBundle = settings.runtime?.lastExportBundle ?? null;
-    const selectedBundle = exportHistory.find((item) => item.bundleName === selectedExportBundleName)
+    const latestLiveBundle = await hydrateDiagnosticsExportBundle(settings.runtime?.lastExportBundle ?? null);
+    const selectedBundle = hydratedExportHistory.find((item) => item.bundleName === selectedExportBundleName)
       ?? latestLiveBundle
       ?? null;
     const useHistoricalBundleLogs = Boolean(
@@ -668,7 +817,7 @@ export class DesktopRuntime {
         recentLogs,
         readinessIssues,
         bootstrap,
-        exportHistory,
+        exportHistory: hydratedExportHistory,
         lastExportBundle: selectedBundle,
         lastSuccessfulProviderTest: settings.lastSuccessfulProviderTest,
         lastAppliedKiroBackup: settings.lastAppliedKiroBackup,
@@ -691,8 +840,10 @@ export class DesktopRuntime {
       readinessIssues,
       lastSuccessfulProviderTest: settings.lastSuccessfulProviderTest,
       lastAppliedKiroBackup: settings.lastAppliedKiroBackup,
-      exportHistory,
+      exportHistory: hydratedExportHistory,
       lastExportBundle: selectedBundle,
+      lastWorkbenchExport: hydratedLastWorkbenchExport,
+      workbenchExportHistory: hydratedWorkbenchExportHistory,
       lastLaunchAttempt: settings.runtime?.lastLaunchAttempt ?? null,
       lastBootstrapAttempt: settings.runtime?.lastBootstrapAttempt ?? null
     };
@@ -1009,6 +1160,28 @@ export class DesktopRuntime {
     return result;
   }
 
+  async exportWorkbenchSnapshot(markdownText) {
+    if (typeof markdownText !== "string" || !markdownText.trim()) {
+      throw new Error("当前工作台状态为空，无法导出。");
+    }
+
+    const exportedAt = this.now().toISOString();
+    const stamp = exportedAt.replace(/[:.]/g, "-");
+    const filePath = join(this.diagnosticsExportDir, `kiro-plus-plus-workbench-${stamp}.md`);
+    await mkdir(this.diagnosticsExportDir, { recursive: true });
+    await writeFile(
+      filePath,
+      `${formatWorkbenchSnapshotReadme()}\n\n---\n\n${markdownText.trim()}\n`,
+      "utf8"
+    );
+    const snapshot = {
+      exportedAt,
+      filePath
+    };
+    await this.saveLastWorkbenchExport(snapshot);
+    return snapshot;
+  }
+
   async clearDiagnosticsHistory() {
     const settings = await this.settingsStore.load();
     await this.saveSettings({
@@ -1018,6 +1191,25 @@ export class DesktopRuntime {
         exportHistory: [],
         lastExportBundle: null,
         selectedExportBundleName: null
+      }
+    });
+    return this.getState();
+  }
+
+  async clearMissingDiagnosticsHistory() {
+    const state = await this.getState();
+    const settings = await this.settingsStore.load();
+    const nextHistory = state.exportHistory.filter((item) => item.exists !== false);
+    const currentSelected = settings.runtime?.selectedExportBundleName ?? null;
+    const selectedStillExists = nextHistory.find((item) => item.bundleName === currentSelected) ?? null;
+    const nextLastExportBundle = selectedStillExists ?? nextHistory[0] ?? null;
+    await this.saveSettings({
+      ...settings,
+      runtime: {
+        ...settings.runtime,
+        exportHistory: nextHistory,
+        lastExportBundle: nextLastExportBundle,
+        selectedExportBundleName: nextLastExportBundle?.bundleName ?? null
       }
     });
     return this.getState();

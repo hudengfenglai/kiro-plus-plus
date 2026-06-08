@@ -95,6 +95,20 @@ export interface DiagnosticsExportBundle {
   latestFailure?: DiagnosticsLogSnapshot | null;
   latestSuccess?: DiagnosticsLogSnapshot | null;
   text: string;
+  exists?: boolean;
+  missingPaths?: string[];
+  zipExists?: boolean;
+}
+
+export interface WorkbenchExportResult {
+  exportedAt: string;
+  filePath: string;
+}
+
+export interface WorkbenchExportSnapshot {
+  exportedAt: string;
+  filePath: string;
+  exists?: boolean;
 }
 
 export interface LaunchAttempt {
@@ -167,6 +181,8 @@ export interface AppState {
     runtime: {
       exportHistory: DiagnosticsExportBundle[];
       lastExportBundle: DiagnosticsExportBundle | null;
+      lastWorkbenchExport: WorkbenchExportSnapshot | null;
+      workbenchExportHistory: WorkbenchExportSnapshot[];
       lastLaunchAttempt: LaunchAttempt | null;
       lastBootstrapAttempt: LaunchAttempt | null;
       selectedExportBundleName: string | null;
@@ -197,6 +213,8 @@ export interface AppState {
   lastAppliedKiroBackup: AppState["settings"]["lastAppliedKiroBackup"];
   exportHistory: DiagnosticsExportBundle[];
   lastExportBundle: DiagnosticsExportBundle | null;
+  lastWorkbenchExport: WorkbenchExportSnapshot | null;
+  workbenchExportHistory: WorkbenchExportSnapshot[];
   lastLaunchAttempt: LaunchAttempt | null;
   lastBootstrapAttempt: LaunchAttempt | null;
 }

@@ -15,6 +15,8 @@ const DEFAULT_KIRO = {
 const DEFAULT_LAST_SUCCESSFUL_PROVIDER_TEST = null;
 const DEFAULT_LAST_APPLIED_KIRO_BACKUP = null;
 const DEFAULT_LAST_EXPORT_BUNDLE = null;
+const DEFAULT_LAST_WORKBENCH_EXPORT = null;
+const DEFAULT_WORKBENCH_EXPORT_HISTORY = [];
 const DEFAULT_EXPORT_HISTORY = [];
 const DEFAULT_LAST_LAUNCH_ATTEMPT = null;
 const DEFAULT_LAST_BOOTSTRAP_ATTEMPT = null;
@@ -199,7 +201,12 @@ function normalizeDiagnosticsExportBundle(value = DEFAULT_LAST_EXPORT_BUNDLE) {
       : undefined,
     latestFailure: normalizeLogSnapshot(value.latestFailure),
     latestSuccess: normalizeLogSnapshot(value.latestSuccess),
-    text: String(value.text ?? "")
+    text: String(value.text ?? ""),
+    exists: typeof value.exists === "boolean" ? value.exists : undefined,
+    missingPaths: Array.isArray(value.missingPaths)
+      ? value.missingPaths.map((item) => String(item))
+      : undefined,
+    zipExists: typeof value.zipExists === "boolean" ? value.zipExists : undefined
   };
 }
 
@@ -209,6 +216,26 @@ function normalizeDiagnosticsExportHistory(value = DEFAULT_EXPORT_HISTORY) {
   }
   return value
     .map(normalizeDiagnosticsExportBundle)
+    .filter(Boolean)
+    .slice(0, MAX_EXPORT_HISTORY);
+}
+
+function normalizeWorkbenchExportSnapshot(value = DEFAULT_LAST_WORKBENCH_EXPORT) {
+  if (!value || typeof value !== "object") return null;
+  if (!value.exportedAt || !value.filePath) return null;
+  return {
+    exportedAt: normalizeTimestamp(value.exportedAt),
+    filePath: String(value.filePath),
+    exists: typeof value.exists === "boolean" ? value.exists : undefined
+  };
+}
+
+function normalizeWorkbenchExportHistory(value = DEFAULT_WORKBENCH_EXPORT_HISTORY) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .map(normalizeWorkbenchExportSnapshot)
     .filter(Boolean)
     .slice(0, MAX_EXPORT_HISTORY);
 }
@@ -294,6 +321,12 @@ export function normalizeAppSettings(input = {}) {
   const lastExportBundle = normalizeDiagnosticsExportBundle(
     input.runtime?.lastExportBundle ?? input.lastExportBundle
   );
+  const lastWorkbenchExport = normalizeWorkbenchExportSnapshot(
+    input.runtime?.lastWorkbenchExport ?? input.lastWorkbenchExport
+  );
+  const workbenchExportHistory = normalizeWorkbenchExportHistory(
+    input.runtime?.workbenchExportHistory ?? input.workbenchExportHistory
+  );
   const lastLaunchAttempt = normalizeLaunchAttempt(
     input.runtime?.lastLaunchAttempt ?? input.lastLaunchAttempt
   );
@@ -322,6 +355,8 @@ export function normalizeAppSettings(input = {}) {
     runtime: {
       exportHistory,
       lastExportBundle,
+      lastWorkbenchExport,
+      workbenchExportHistory,
       lastLaunchAttempt,
       lastBootstrapAttempt,
       selectedExportBundleName: normalizeSelectedExportBundleName(

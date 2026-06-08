@@ -149,6 +149,32 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
   assert.equal(settings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
 });
 
+test("normalizeAppSettings preserves last workbench export metadata", () => {
+  const settings = normalizeAppSettings({
+    runtime: {
+      lastWorkbenchExport: {
+        exportedAt: "2026-06-08T12:20:30.000Z",
+        filePath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-workbench-2026-06-08T12-20-30-000Z.md"
+      },
+      workbenchExportHistory: [
+        {
+          exportedAt: "2026-06-08T12:20:30.000Z",
+          filePath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-workbench-2026-06-08T12-20-30-000Z.md"
+        },
+        {
+          exportedAt: "2026-06-08T12:25:30.000Z",
+          filePath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-workbench-2026-06-08T12-25-30-000Z.md"
+        }
+      ]
+    }
+  });
+
+  assert.equal(settings.runtime.lastWorkbenchExport?.exportedAt, "2026-06-08T12:20:30.000Z");
+  assert.match(settings.runtime.lastWorkbenchExport?.filePath ?? "", /kiro-plus-plus-workbench-2026-06-08T12-20-30-000Z\.md$/);
+  assert.equal(settings.runtime.workbenchExportHistory.length, 2);
+  assert.match(settings.runtime.workbenchExportHistory[1]?.filePath ?? "", /kiro-plus-plus-workbench-2026-06-08T12-25-30-000Z\.md$/);
+});
+
 test("normalizeAppSettings preserves last launch attempt metadata", () => {
   const settings = normalizeAppSettings({
     runtime: {

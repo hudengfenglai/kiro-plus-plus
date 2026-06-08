@@ -66,9 +66,14 @@ export function registerIpcHandlers(runtime = createDesktopRuntime()) {
   ipcMain.handle(IPC_CHANNELS.diagnosticsExport, async () => runtime.exportDiagnostics());
   ipcMain.handle(IPC_CHANNELS.diagnosticsExportFile, async () => runtime.exportDiagnosticsToFile());
   ipcMain.handle(IPC_CHANNELS.diagnosticsExportZip, async () => runtime.exportDiagnosticsZip());
+  ipcMain.handle(IPC_CHANNELS.diagnosticsExportWorkbench, async (_event, markdownText) => runtime.exportWorkbenchSnapshot(markdownText));
   ipcMain.handle(IPC_CHANNELS.diagnosticsClearHistory, async () => runtime.clearDiagnosticsHistory());
+  ipcMain.handle(IPC_CHANNELS.diagnosticsClearMissingHistory, async () => runtime.clearMissingDiagnosticsHistory());
+  ipcMain.handle(IPC_CHANNELS.diagnosticsClearWorkbenchHistory, async () => runtime.clearWorkbenchExportHistory());
+  ipcMain.handle(IPC_CHANNELS.diagnosticsClearMissingWorkbenchHistory, async () => runtime.clearMissingWorkbenchExportHistory());
   ipcMain.handle(IPC_CHANNELS.diagnosticsSelectBundle, async (_event, bundleName) => runtime.selectExportBundle(bundleName));
   ipcMain.handle(IPC_CHANNELS.diagnosticsDeleteBundle, async (_event, bundleName) => runtime.deleteExportBundle(bundleName));
+  ipcMain.handle(IPC_CHANNELS.diagnosticsDeleteWorkbench, async (_event, filePath) => runtime.deleteWorkbenchExport(filePath));
 
   ipcMain.handle(IPC_CHANNELS.proxyStart, async () => runtime.startProxy());
   ipcMain.handle(IPC_CHANNELS.proxyStop, async () => runtime.stopProxy());

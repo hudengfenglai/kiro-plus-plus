@@ -26,7 +26,8 @@ import type {
   PlaygroundResult,
   ProviderModel,
   ProviderProfile,
-  RequestLogEntry
+  RequestLogEntry,
+  WorkbenchExportResult
 } from "../../shared/types";
 
 type ViewKey = "home" | "console";
@@ -67,6 +68,8 @@ const emptyState: AppState = {
     runtime: {
       exportHistory: [],
       lastExportBundle: null,
+      lastWorkbenchExport: null,
+      workbenchExportHistory: [],
       lastLaunchAttempt: null,
       lastBootstrapAttempt: null,
       selectedExportBundleName: null
@@ -105,6 +108,8 @@ const emptyState: AppState = {
   lastAppliedKiroBackup: null,
   exportHistory: [],
   lastExportBundle: null,
+  lastWorkbenchExport: null,
+  workbenchExportHistory: [],
   lastLaunchAttempt: null,
   lastBootstrapAttempt: null
 };
@@ -467,6 +472,56 @@ function buildWorkbenchShareText({
   ].join("\n");
 }
 
+function buildWorkbenchShareMarkdown({
+  bundleName,
+  recentLogsSource,
+  diagnosticsSummarySource,
+  diagnosticsSummary,
+  outputShareText,
+  outputCount,
+  outputSessionStartedAt,
+  latestFailure,
+  latestSuccess
+}: {
+  bundleName: string | null;
+  recentLogsSource: { kind: "live" | "bundle"; bundleName?: string };
+  diagnosticsSummarySource: { kind: "live" | "bundle"; bundleName?: string };
+  diagnosticsSummary: string;
+  outputShareText: string;
+  outputCount: number;
+  outputSessionStartedAt: null | string;
+  latestFailure: DiagnosticsLogSnapshot | RequestLogEntry | null;
+  latestSuccess: DiagnosticsLogSnapshot | RequestLogEntry | null;
+}) {
+  const text = buildWorkbenchShareText({
+    bundleName,
+    recentLogsSource,
+    diagnosticsSummarySource,
+    diagnosticsSummary,
+    outputShareText,
+    outputCount,
+    outputSessionStartedAt,
+    latestFailure,
+    latestSuccess
+  });
+
+  return [
+    "# Kiro++ Workbench Snapshot",
+    "",
+    `- Exported at: ${nowIso()}`,
+    `- Selected bundle: ${bundleName ?? "none"}`,
+    `- Logs source: ${recentLogsSource.kind === "bundle" ? `bundle (${recentLogsSource.bundleName ?? "unknown"})` : "live"}`,
+    `- Diagnostics source: ${diagnosticsSummarySource.kind === "bundle" ? `bundle (${diagnosticsSummarySource.bundleName ?? "unknown"})` : "live"}`,
+    outputCount > 0
+      ? `- Output session: ${outputCount} entries since ${outputSessionStartedAt ?? "-"}`
+      : "- Output session: no entries in current desktop session",
+    "",
+    "```text",
+    text,
+    "```"
+  ].join("\n");
+}
+
 function collectUnavailableReasons(actions: Record<string, { enabled: boolean; reason: string | null }>) {
   return Array.from(
     new Set(
@@ -597,6 +652,8 @@ export function App() {
   const selectedProviderLabel = selectedProvider?.label ?? "未配置";
   const primaryIssue = state.readinessIssues[0] ?? null;
   const latestLiveExportBundle = state.settings.runtime.lastExportBundle ?? null;
+  const latestWorkbenchExport = state.settings.runtime.lastWorkbenchExport ?? null;
+  const workbenchExportHistory = state.settings.runtime.workbenchExportHistory ?? [];
 
   const viewingHistoricalBundle = Boolean(
     lastExportBundle
@@ -861,6 +918,130 @@ export function App() {
         afterFocus: "logs"
       }
     );
+  }
+
+  async function exportWorkbenchSnapshot() {
+    const outputShareText = buildOutputShareText({
+      entries: outputEntries,
+      viewingHistoricalBundle,
+      currentBundleName: lastExportBundle?.bundleName ?? null,
+      selectedProviderLabel,
+      proxyEndpoint: state.proxyStatus.endpoint,
+      proxyState: proxyStateLabels[state.proxyStatus.state],
+      isByokEnabled: state.settings.isByokEnabled
+    });
+    const markdown = buildWorkbenchShareMarkdown({
+      bundleName: lastExportBundle?.bundleName ?? null,
+      recentLogsSource: state.recentLogsSource,
+      diagnosticsSummarySource: state.diagnosticsSummarySource,
+      diagnosticsSummary: state.diagnosticsSummary,
+      outputShareText,
+      outputCount: outputEntries.length,
+      outputSessionStartedAt,
+      latestFailure,
+      latestSuccess
+    });
+    const result = await runAction(
+      () => requireDesktopApi().exportWorkbenchSnapshot(markdown),
+      {
+        pending: "正在导出当前工作台状态...",
+        success: "当前工作台状态已导出。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as WorkbenchExportResult;
+    setStatusDetail(`Markdown 文件：${typed.filePath}`);
+  }
+
+  async function openLatestWorkbenchSnapshot() {
+    const filePath = latestWorkbenchExport?.filePath;
+    if (!filePath) {
+      setStatus("还没有可打开的工作台快照文件。");
+      setStatusDetail("");
+      return;
+    }
+    if (latestWorkbenchExport?.exists === false) {
+      setStatus("最近工作台快照文件已不存在。");
+      setStatusDetail(filePath);
+      return;
+    }
+    await runAction(
+      () => requireDesktopApi().openPath(filePath),
+      {
+        pending: "正在打开工作台快照文件...",
+        success: "工作台快照文件已打开。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function openWorkbenchSnapshot(filePath: string) {
+    const snapshot = workbenchExportHistory.find((item) => item.filePath === filePath) ?? null;
+    if (snapshot?.exists === false) {
+      setStatus("所选工作台快照文件已不存在。");
+      setStatusDetail(filePath);
+      return;
+    }
+    await runAction(
+      () => requireDesktopApi().openPath(filePath),
+      {
+        pending: "正在打开工作台快照文件...",
+        success: "工作台快照文件已打开。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function deleteWorkbenchExport(filePath: string) {
+    const result = await runAction(
+      () => requireDesktopApi().deleteWorkbenchExport(filePath),
+      {
+        pending: "正在移除工作台快照记录...",
+        success: "工作台快照记录已移除。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as AppState;
+    setState(typed);
+  }
+
+  async function clearWorkbenchExportHistory() {
+    const result = await runAction(
+      () => requireDesktopApi().clearWorkbenchExportHistory(),
+      {
+        pending: "正在清空工作台快照历史...",
+        success: "工作台快照历史已清空。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as AppState;
+    setState(typed);
+  }
+
+  async function clearMissingWorkbenchExportHistory() {
+    const result = await runAction(
+      () => requireDesktopApi().clearMissingWorkbenchExportHistory(),
+      {
+        pending: "正在清理失效工作台快照记录...",
+        success: "失效工作台快照记录已清理。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as AppState;
+    setState(typed);
+  }
+
+  async function clearMissingDiagnosticsHistory() {
+    const result = await runAction(
+      () => requireDesktopApi().clearMissingDiagnosticsHistory(),
+      {
+        pending: "正在清理失效支持包记录...",
+        success: "失效支持包记录已清理。",
+        afterFocus: "logs"
+      }
+    );
+    const typed = result as AppState;
+    setState(typed);
   }
 
   async function runAction(
@@ -1371,6 +1552,11 @@ export function App() {
       setStatus("还没有可打开的 zip 支持包。");
       return;
     }
+    if (lastExportBundle?.zipExists === false) {
+      setStatus("当前 zip 支持包文件已不存在。");
+      setStatusDetail(zipPath);
+      return;
+    }
     await runAction(
       () => requireDesktopApi().openPath(zipPath),
       {
@@ -1384,6 +1570,11 @@ export function App() {
   async function openExportArtifact(target: null | string, label: string) {
     if (!target) {
       setStatus(`还没有可打开的${label}。`);
+      return;
+    }
+    if (lastExportBundle?.exists === false) {
+      setStatus(`当前支持包文件不完整，无法打开${label}。`);
+      setStatusDetail(target);
       return;
     }
     await runAction(
@@ -2597,11 +2788,14 @@ export function App() {
                   </div>
                   <div className="summary-actions">
                     <button className="ghost-button" onClick={copyWorkbenchSnapshot}>复制当前工作台状态</button>
+                    <button className="ghost-button" onClick={exportWorkbenchSnapshot}>导出当前工作台状态</button>
+                    <button className="ghost-button" onClick={openLatestWorkbenchSnapshot}>打开最近工作台快照</button>
                     <button className="ghost-button" onClick={copyDiagnosticsSummary}>复制脱敏摘要</button>
                     <button className="ghost-button" onClick={exportDiagnosticsToFile}>导出诊断文件</button>
                     <button className="ghost-button" onClick={exportDiagnosticsZip}>导出 zip 支持包</button>
                     <button className="ghost-button" onClick={openExportBundleDir}>打开导出目录</button>
                     <button className="ghost-button" onClick={openExportZip}>打开 zip 支持包</button>
+                    <button className="ghost-button" onClick={clearMissingDiagnosticsHistory}>清理失效支持包</button>
                     <button className="ghost-button" onClick={clearExportHistory}>清空支持包历史</button>
                     <button
                       className="ghost-button"
@@ -2651,13 +2845,32 @@ export function App() {
                       ) : null}
                       <dl className="kv-grid compact">
                         <div><dt>目录</dt><dd>{exportSummary.bundleName}</dd></div>
-                        <div><dt>zip</dt><dd>{lastExportBundle?.zipPath ? exportSummary.zipName : "未导出"}</dd></div>
+                        <div><dt>状态</dt><dd>{lastExportBundle?.exists === false ? "文件缺失" : "可用"}</dd></div>
+                        <div><dt>zip</dt><dd>{
+                          !lastExportBundle?.zipPath
+                            ? "未导出"
+                            : lastExportBundle.zipExists === false
+                              ? `${exportSummary.zipName}（文件缺失）`
+                              : exportSummary.zipName
+                        }</dd></div>
                         <div><dt>说明</dt><dd>{exportSummary.readmeName}</dd></div>
                         <div><dt>摘要</dt><dd>{exportSummary.summaryName}</dd></div>
                         <div><dt>快照</dt><dd>{exportSummary.snapshotName}</dd></div>
                         <div><dt>请求</dt><dd>{exportSummary.requestsName}</dd></div>
                         <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
                       </dl>
+                      {lastExportBundle?.exists === false ? (
+                        <p className="export-subtle">
+                          这条支持包记录对应的文件已经不完整或被删除
+                          {lastExportBundle.missingPaths?.length
+                            ? `：缺少 ${lastExportBundle.missingPaths.join(", ")}`
+                            : ""}
+                          ，建议移除这条历史后重新导出。
+                        </p>
+                      ) : null}
+                      {lastExportBundle?.exists !== false && lastExportBundle?.zipPath && lastExportBundle?.zipExists === false ? (
+                        <p className="export-subtle">当前支持包主体仍可用，但 `.zip` 文件已经不存在；如需分享压缩包，请重新导出 zip。</p>
+                      ) : null}
                       <div className="export-actions">
                         <button className="ghost-button" onClick={copySupportSnapshot}>复制支持快照</button>
                         <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
@@ -2685,11 +2898,11 @@ export function App() {
                                 className={bundle.bundleName === lastExportBundle?.bundleName ? "history-row active" : "history-row"}
                               >
                                 <button
-                                  className={bundle.bundleName === lastExportBundle?.bundleName ? "history-chip active" : "history-chip"}
+                                  className={`${bundle.bundleName === lastExportBundle?.bundleName ? "history-chip active" : "history-chip"}${bundle.exists === false ? " missing" : ""}`}
                                   onClick={() => selectExportBundle(bundle)}
                                 >
                                   <span>{bundle.bundleName}</span>
-                                  <small>{formatTime(bundle.exportedAt)}</small>
+                                  <small>{formatTime(bundle.exportedAt)}{bundle.exists === false ? " · 文件缺失" : ""}</small>
                                 </button>
                                 <button className="ghost-button history-delete" onClick={() => deleteExportBundle(bundle)}>移除</button>
                               </div>
@@ -2698,6 +2911,69 @@ export function App() {
                         </div>
                       ) : null}
                       <p className="export-hint">导出内容已默认脱敏，适合发到 GitHub Issue、LinuxDO 或群内排错。</p>
+                    </section>
+                  ) : null}
+                  {latestWorkbenchExport ? (
+                    <section className="export-card compact-export-card">
+                      <div className="export-card-head">
+                        <div>
+                          <span className="snapshot-label">Workbench Snapshot</span>
+                          <strong>最近工作台快照</strong>
+                        </div>
+                        <small>{formatTime(latestWorkbenchExport.exportedAt)}</small>
+                      </div>
+                      <dl className="kv-grid compact">
+                        <div><dt>文件</dt><dd>{basename(latestWorkbenchExport.filePath)}</dd></div>
+                        <div><dt>状态</dt><dd>{latestWorkbenchExport.exists === false ? "文件缺失" : "可打开"}</dd></div>
+                        <div><dt>位置</dt><dd>{latestWorkbenchExport.filePath}</dd></div>
+                      </dl>
+                      {latestWorkbenchExport.exists === false ? (
+                        <p className="export-subtle">这个快照文件已经不在磁盘上了，可以直接移除这条历史记录。</p>
+                      ) : null}
+                      <div className="export-actions compact-export-actions">
+                        <button className="ghost-button" onClick={openLatestWorkbenchSnapshot}>打开快照</button>
+                        <button
+                          className="ghost-button"
+                          onClick={() => writeClipboardText(latestWorkbenchExport.filePath).then(() => {
+                            setStatus("工作台快照路径已复制。");
+                            setStatusDetail(latestWorkbenchExport.filePath);
+                          }).catch((error) => {
+                            const parsed = describeError(error);
+                            setStatus(parsed.summary);
+                            setStatusDetail(parsed.detail);
+                          })}
+                        >
+                          复制路径
+                        </button>
+                        <button className="ghost-button" onClick={clearMissingWorkbenchExportHistory}>清理失效快照</button>
+                        <button className="ghost-button" onClick={clearWorkbenchExportHistory}>清空快照历史</button>
+                      </div>
+                      {workbenchExportHistory.length > 1 ? (
+                        <div className="export-history compact-export-history">
+                          <div className="export-history-head">
+                            <strong>最近快照历史</strong>
+                            <small>保留最近 {workbenchExportHistory.length} 次</small>
+                          </div>
+                          <div className="export-history-list">
+                            {workbenchExportHistory.map((snapshot) => (
+                              <div
+                                key={snapshot.filePath}
+                                className={snapshot.filePath === latestWorkbenchExport.filePath ? "history-row active" : "history-row"}
+                              >
+                                <button
+                                  className={`${snapshot.filePath === latestWorkbenchExport.filePath ? "history-chip active" : "history-chip"}${snapshot.exists === false ? " missing" : ""}`}
+                                  onClick={() => openWorkbenchSnapshot(snapshot.filePath)}
+                                >
+                                  <span>{basename(snapshot.filePath)}</span>
+                                  <small>{formatTime(snapshot.exportedAt)}{snapshot.exists === false ? " · 文件缺失" : ""}</small>
+                                </button>
+                                <button className="ghost-button history-delete" onClick={() => deleteWorkbenchExport(snapshot.filePath)}>移除</button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                      <p className="export-hint">这个 Markdown 文件保存的是当前工作台视图，适合直接附到 GitHub Issue 或 LinuxDO 帖子。</p>
                     </section>
                   ) : null}
                   <pre className="summary-block">{state.diagnosticsSummary || "诊断摘要将在这里显示。"}</pre>

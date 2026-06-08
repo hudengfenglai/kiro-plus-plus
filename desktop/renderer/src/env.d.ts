@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { AppMeta, AppState, DiagnosticsExportBundle, PlaygroundRequest } from "../../shared/types";
+import type { AppMeta, AppState, DiagnosticsExportBundle, PlaygroundRequest, WorkbenchExportResult } from "../../shared/types";
 
 declare global {
   interface Window {
@@ -15,9 +15,14 @@ declare global {
       exportDiagnostics: () => Promise<string>;
       exportDiagnosticsToFile: () => Promise<DiagnosticsExportBundle>;
       exportDiagnosticsZip: () => Promise<DiagnosticsExportBundle>;
+      exportWorkbenchSnapshot: (markdownText: string) => Promise<WorkbenchExportResult>;
       clearDiagnosticsHistory: () => Promise<AppState>;
+      clearMissingDiagnosticsHistory: () => Promise<AppState>;
+      clearWorkbenchExportHistory: () => Promise<AppState>;
+      clearMissingWorkbenchExportHistory: () => Promise<AppState>;
       selectDiagnosticsBundle: (bundleName: string) => Promise<AppState>;
       deleteDiagnosticsBundle: (bundleName: string) => Promise<AppState>;
+      deleteWorkbenchExport: (filePath: string) => Promise<AppState>;
       startProxy: () => Promise<unknown>;
       stopProxy: () => Promise<unknown>;
       restartProxy: () => Promise<unknown>;
