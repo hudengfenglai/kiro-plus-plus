@@ -308,4 +308,48 @@ test("package.json exposes release prep output aliases", async () => {
   assert.equal(packageJson.scripts["release:prep"], "node ./scripts/release-prep.mjs");
   assert.equal(packageJson.scripts["release:prep:markdown"], "node ./scripts/release-prep.mjs --markdown");
   assert.equal(packageJson.scripts["release:prep:json"], "node ./scripts/release-prep.mjs --json");
+  assert.equal(packageJson.scripts["release:prep:write"], "node ./scripts/release-prep.mjs --write-markdown release/release-summary.md");
+});
+
+test("release-prep cli supports --write-markdown output file", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-write-"));
+
+  try {
+    await mkdir(join(workspace, "docs", "release"), { recursive: true });
+    await mkdir(join(workspace, "release"), { recursive: true });
+
+    await writeFile(join(workspace, "package.json"), JSON.stringify({
+      name: "kiro-plus-plus",
+      version: "0.1.0"
+    }, null, 2));
+    await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(
+      join(workspace, "docs", "release", "linuxdo-post.md"),
+      [
+        "# post",
+        "GitHub 仓库：`https://github.com/hudengfenglai/kiro-plus-plus`",
+        "Release 下载：`<RELEASE_DOWNLOAD_URL>`"
+      ].join("\n")
+    );
+    await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
+    await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
+
+    const outputPath = join(workspace, "release", "release-summary.md");
+
+    await execFileAsync("node", ["./scripts/release-prep.mjs", "--write-markdown", outputPath], {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        KIRO_PLUS_RELEASE_PREP_ROOT: workspace
+      }
+    });
+
+    const saved = await readFile(outputPath, "utf8");
+    assert.match(saved, /^# Kiro\+\+ 0\.1\.0 Release Prep/m);
+    assert.match(saved, /## Summary/);
+    assert.match(saved, /## Next Actions/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
 });

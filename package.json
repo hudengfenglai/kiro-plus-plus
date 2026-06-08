@@ -21,7 +21,8 @@
     "desktop:package": "npm run desktop:build && electron-builder --win nsis",
     "release:prep": "node ./scripts/release-prep.mjs",
     "release:prep:markdown": "node ./scripts/release-prep.mjs --markdown",
-    "release:prep:json": "node ./scripts/release-prep.mjs --json"
+    "release:prep:json": "node ./scripts/release-prep.mjs --json",
+    "release:prep:write": "node ./scripts/release-prep.mjs --write-markdown release/release-summary.md"
   },
   "engines": {
     "node": ">=18"

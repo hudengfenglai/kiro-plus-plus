@@ -1,6 +1,6 @@
-import { access, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -208,13 +208,28 @@ const cliArgs = process.argv.slice(2);
 
 if (entryPath && currentFilePath === entryPath) {
   try {
-    const report = await buildReleasePrepReport();
-    const output = cliArgs.includes("--json")
-      ? JSON.stringify(report, null, 2)
-      : cliArgs.includes("--markdown")
-        ? formatReleasePrepMarkdown(report)
-        : formatReleasePrepReport(report);
-    process.stdout.write(`${output}\n`);
+    const rootDir = process.env.KIRO_PLUS_RELEASE_PREP_ROOT
+      ? resolve(process.env.KIRO_PLUS_RELEASE_PREP_ROOT)
+      : process.cwd();
+    const report = await buildReleasePrepReport({ rootDir });
+    const writeMarkdownIndex = cliArgs.indexOf("--write-markdown");
+    const writeMarkdownPath = writeMarkdownIndex >= 0
+      ? cliArgs[writeMarkdownIndex + 1]
+      : null;
+
+    if (writeMarkdownPath) {
+      const absoluteOutputPath = resolve(rootDir, writeMarkdownPath);
+      await mkdir(dirname(absoluteOutputPath), { recursive: true });
+      await writeFile(absoluteOutputPath, `${formatReleasePrepMarkdown(report)}\n`, "utf8");
+      process.stdout.write(`${absoluteOutputPath}\n`);
+    } else {
+      const output = cliArgs.includes("--json")
+        ? JSON.stringify(report, null, 2)
+        : cliArgs.includes("--markdown")
+          ? formatReleasePrepMarkdown(report)
+          : formatReleasePrepReport(report);
+      process.stdout.write(`${output}\n`);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`[kiro++] release:prep failed: ${message}\n`);
