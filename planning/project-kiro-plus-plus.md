@@ -3,7 +3,7 @@
 Status: UI Refresh In Progress
 Priority: High
 Created: 2026-05-25
-Updated: 2026-06-07
+Updated: 2026-06-08
 
 ## Goal
 
@@ -88,9 +88,14 @@ Recent Progress:
 - Reduced lower-workspace noise during setup mode by hiding launch/bootstrap history cards and the full workbench tab surface until the minimum onboarding path is complete, keeping the center column focused on state, routing, and blockers first.
 - Tightened the left Kiro control panel during setup mode as well, promoting proxy/BYOK/diagnose actions while delaying stop/restore-style maintenance actions until the minimum onboarding path is complete.
 - Added renderer-side availability rules for key Kiro actions so setup-mode buttons can now disable themselves with concrete reasons when proxy state, Kiro detection, BYOK state, or backup availability are not ready yet.
+- Extended the same availability approach into Provider actions so fetch/test now disable themselves when Base URL, models, or default model state is invalid instead of failing only after click.
+- Added visible inline blocker hints below the Provider and Kiro action clusters so first-run users can see why the next action is unavailable without relying on hover-only tooltips.
+- Added a setup-workspace blocker summary that prioritizes runtime readiness issues first and otherwise falls back to pending quickstart steps, so first-run users now see a single “what is blocking me now” surface before scanning the rest of the workbench.
+- Fixed desktop provider rename persistence so changing `provider id` now replaces the old profile entry instead of leaving both old and new ids in settings.
+- Fixed desktop secret migration during provider rename so an existing saved API key now follows the new `provider id` even when the user only renames the profile without re-entering the key.
 
 Verification:
-- `npm test` passes with 70 tests.
+- `npm test` passes with 84 tests.
 - `npm run typecheck` succeeds.
 - `npm run desktop:build` succeeds.
 - Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.

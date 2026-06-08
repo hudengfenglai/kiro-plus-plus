@@ -1034,3 +1034,194 @@ test("desktop runtime reports readiness issues for missing key and missing Kiro"
   assert.match(summary, /Issue 1: \[error\] Provider API Key 尚未保存 \/ 填写并保存 Key/);
   assert.match(summary, /Issue 6: \[warning\] 最近出现未兼容操作 \/ 查看日志/);
 });
+
+test("desktop runtime saveProvider replaces renamed provider instead of keeping both ids", async () => {
+  let savedSettings = normalizeAppSettings({
+    selectedProviderId: "deepseek",
+    providers: [
+      {
+        id: "deepseek",
+        providerPresetId: "deepseek",
+        type: "openai-compatible",
+        label: "DeepSeek",
+        baseUrl: "https://api.deepseek.com",
+        defaultModel: "deepseek-v4-pro",
+        models: [
+          {
+            id: "deepseek-v4-pro",
+            name: "deepseek-v4-pro",
+            description: "BYOK routed model",
+            note: ""
+          }
+        ]
+      }
+    ]
+  });
+
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async () => "sk-test",
+      set: async () => {}
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  const next = await runtime.saveProvider({
+    profile: {
+      id: "deepseek-cn",
+      providerPresetId: "deepseek",
+      type: "openai-compatible",
+      label: "DeepSeek CN",
+      baseUrl: "https://api.deepseek.com",
+      defaultModel: "deepseek-v4-pro",
+      models: [
+        {
+          id: "deepseek-v4-pro",
+          name: "deepseek-v4-pro",
+          description: "BYOK routed model",
+          note: ""
+        }
+      ]
+    },
+    apiKey: "sk-test"
+  });
+
+  assert.equal(next.selectedProviderId, "deepseek-cn");
+  assert.deepEqual(next.providers.map((provider) => provider.id), ["deepseek-cn"]);
+  assert.equal(savedSettings.providers.length, 1);
+  assert.equal(savedSettings.providers[0].label, "DeepSeek CN");
+});
+
+test("desktop runtime saveProvider migrates stored api key when provider id is renamed without new key input", async () => {
+  let savedSettings = normalizeAppSettings({
+    selectedProviderId: "deepseek",
+    providers: [
+      {
+        id: "deepseek",
+        providerPresetId: "deepseek",
+        type: "openai-compatible",
+        label: "DeepSeek",
+        baseUrl: "https://api.deepseek.com",
+        defaultModel: "deepseek-v4-pro",
+        models: [
+          {
+            id: "deepseek-v4-pro",
+            name: "deepseek-v4-pro",
+            description: "BYOK routed model",
+            note: ""
+          }
+        ]
+      }
+    ]
+  });
+  const secrets = new Map([
+    ["provider:deepseek:apiKey", "sk-old"]
+  ]);
+
+  const runtime = new DesktopRuntime({
+    settingsStore: {
+      load: async () => savedSettings,
+      save: async (next) => {
+        savedSettings = normalizeAppSettings(next);
+        return savedSettings;
+      }
+    },
+    secretStore: {
+      get: async (account) => secrets.get(account) ?? null,
+      set: async (account, value) => {
+        secrets.set(account, value);
+      },
+      delete: async (account) => {
+        secrets.delete(account);
+      }
+    },
+    providerCatalog: {
+      testProviderConnection: async () => ({ ok: true, modelId: "deepseek-v4-pro", latencyMs: 1, text: "ok" }),
+      fetchModels: async () => []
+    },
+    proxyService: {
+      getStatus: () => ({ state: "stopped", endpoint: null, error: null })
+    },
+    kiroService: {
+      detectKiro: async () => ({
+        installed: true,
+        installPath: "E:\\Kiro\\Kiro.exe",
+        searchedInstallPaths: ["E:\\Kiro\\Kiro.exe"],
+        detectionHint: "已检测到 Kiro 安装：E:\\Kiro\\Kiro.exe",
+        settingsPath: "settings.json",
+        profilesDir: "profiles",
+        backupDir: "backups",
+        lastBackup: null
+      }),
+      diagnose: async () => ({
+        localRegions: [],
+        unsupportedOperationsSeen: [],
+        autoModeBlocksByok: false,
+        profileAutoModeBlocksByok: false,
+        hint: "ok"
+      })
+    },
+    logService: {
+      tailRequests: async () => [],
+      listRequests: async () => []
+    }
+  });
+
+  await runtime.saveProvider({
+    profile: {
+      id: "deepseek-cn",
+      providerPresetId: "deepseek",
+      type: "openai-compatible",
+      label: "DeepSeek CN",
+      baseUrl: "https://api.deepseek.com",
+      defaultModel: "deepseek-v4-pro",
+      models: [
+        {
+          id: "deepseek-v4-pro",
+          name: "deepseek-v4-pro",
+          description: "BYOK routed model",
+          note: ""
+        }
+      ]
+    }
+  });
+
+  assert.equal(secrets.get("provider:deepseek-cn:apiKey"), "sk-old");
+  assert.equal(secrets.has("provider:deepseek:apiKey"), false);
+});

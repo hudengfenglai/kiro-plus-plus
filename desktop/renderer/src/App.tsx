@@ -6,7 +6,11 @@ import {
 } from "../../shared/provider-presets";
 import {
   buildKiroActionAvailability,
+  buildProviderActionAvailability,
+  buildProviderDraftStatus,
   buildQuickstartChecklist,
+  buildSetupWorkspaceSummary,
+  shouldPromptBeforeReplacingProviderDraft,
   summarizeQuickstartChecklist,
   type QuickstartItem
 } from "../../shared/quickstart";
@@ -35,6 +39,10 @@ type ActionEntry = {
 };
 
 type PlaygroundState = PlaygroundResult & { requestedAt: string };
+type PendingProviderReplaceAction =
+  | null
+  | { kind: "apply-preset" }
+  | { kind: "switch-provider"; providerId: string };
 
 const emptyState: AppState = {
   settings: {
@@ -279,6 +287,16 @@ function summarizeLog(entry: RequestLogEntry | null) {
   };
 }
 
+function collectUnavailableReasons(actions: Record<string, { enabled: boolean; reason: string | null }>) {
+  return Array.from(
+    new Set(
+      Object.values(actions)
+        .filter((item) => !item.enabled && item.reason)
+        .map((item) => item.reason as string)
+    )
+  );
+}
+
 function buildModelsText(models: ProviderModel[]) {
   return models.map((model) => model.id).join("\n");
 }
@@ -368,6 +386,7 @@ export function App() {
   const [playgroundResult, setPlaygroundResult] = useState<null | PlaygroundState>(null);
   const [lastExportBundle, setLastExportBundle] = useState<DiagnosticsExportBundle | null>(null);
   const [hasBootstrapped, setHasBootstrapped] = useState(false);
+  const [pendingProviderReplaceAction, setPendingProviderReplaceAction] = useState<PendingProviderReplaceAction>(null);
 
   const providerOptions = useMemo(() => Object.values(PROVIDER_PRESETS), []);
 
@@ -412,6 +431,22 @@ export function App() {
     () => buildKiroActionAvailability(state),
     [state]
   );
+  const providerActionAvailability = useMemo(
+    () => buildProviderActionAvailability(state, { hasDraftApiKey: Boolean(apiKey.trim()) }),
+    [apiKey, state]
+  );
+  const providerActionHints = useMemo(
+    () => collectUnavailableReasons(providerActionAvailability),
+    [providerActionAvailability]
+  );
+  const kiroActionHints = useMemo(
+    () => collectUnavailableReasons(kiroActionAvailability),
+    [kiroActionAvailability]
+  );
+  const setupWorkspaceSummary = useMemo(
+    () => buildSetupWorkspaceSummary(state),
+    [state]
+  );
 
   const outputEntries = useMemo(
     () => [...actionEntries].sort((a, b) => (a.at < b.at ? 1 : -1)),
@@ -447,6 +482,17 @@ export function App() {
     () => parseModelsText(modelsText, selectedProvider?.models ?? []),
     [modelsText, selectedProvider]
   );
+  const providerDraftStatus = useMemo(() => {
+    const savedProfile = state.settings.providers.find((provider) => provider.id === selectedProvider?.id)
+      ?? state.settings.providers[0]
+      ?? null;
+    return buildProviderDraftStatus({
+      savedProfile,
+      draftProfile: selectedProvider,
+      draftModels: selectedProviderModels,
+      hasDraftApiKey: Boolean(apiKey.trim())
+    });
+  }, [apiKey, selectedProvider, selectedProviderModels, state.settings.providers]);
 
   const providerForPlayground = useMemo(
     () => state.settings.providers.find((provider) => provider.id === playgroundProviderId)
@@ -610,13 +656,49 @@ export function App() {
     setModelsText(buildModelsText(next.models));
   }
 
-  function applyPresetToDraft() {
-    const next = buildProviderProfileFromPreset(presetId);
+  function replaceProviderDraft(next: ProviderProfile | null) {
     setProviderDraft(next);
-    setModelsText(buildModelsText(next.models));
-    setPlaygroundProviderId(next.id);
-    setPlaygroundModelId(next.defaultModel);
+    setPresetId(next?.providerPresetId ?? "deepseek");
+    setModelsText(buildModelsText(next?.models ?? []));
+    setApiKey("");
+    setPlaygroundProviderId(next?.id ?? "");
+    setPlaygroundModelId(next?.defaultModel ?? "");
     setFocus("providers");
+  }
+
+  function executePendingProviderReplaceAction(action: Exclude<PendingProviderReplaceAction, null>) {
+    if (action.kind === "apply-preset") {
+      const next = buildProviderProfileFromPreset(presetId);
+      replaceProviderDraft(next);
+      return;
+    }
+
+    const next = state.settings.providers.find((provider) => provider.id === action.providerId) ?? null;
+    replaceProviderDraft(next);
+  }
+
+  function requestReplaceProviderDraft(action: Exclude<PendingProviderReplaceAction, null>) {
+    if (!shouldPromptBeforeReplacingProviderDraft(providerDraftStatus)) {
+      executePendingProviderReplaceAction(action);
+      return;
+    }
+    setPendingProviderReplaceAction(action);
+  }
+
+  function applyPresetToDraft() {
+    requestReplaceProviderDraft({ kind: "apply-preset" });
+  }
+
+  function confirmPendingProviderReplaceAction() {
+    if (!pendingProviderReplaceAction) {
+      return;
+    }
+    executePendingProviderReplaceAction(pendingProviderReplaceAction);
+    setPendingProviderReplaceAction(null);
+  }
+
+  function cancelPendingProviderReplaceAction() {
+    setPendingProviderReplaceAction(null);
   }
 
   async function handleSaveProvider() {
@@ -890,6 +972,29 @@ export function App() {
         openConsole(item.focus);
         return Promise.resolve();
     }
+  }
+
+  async function handleSetupSummaryAction(item: {
+    id: string;
+    source: "readiness" | "quickstart";
+    focus: ConsoleFocus;
+  }) {
+    if (item.source === "readiness") {
+      const issue = state.readinessIssues.find((entry) => entry.key === item.id);
+      if (issue) {
+        return handleReadinessAction(issue);
+      }
+      openConsole(item.focus);
+      return Promise.resolve();
+    }
+
+    const quickstartItem = quickstartChecklist.find((entry) => entry.id === item.id);
+    if (quickstartItem) {
+      return handleQuickstartAction(quickstartItem);
+    }
+
+    openConsole(item.focus);
+    return Promise.resolve();
   }
 
   async function handleLaunchEntry() {
@@ -1171,12 +1276,10 @@ export function App() {
                   <select
                     value={selectedProvider.id}
                     onChange={(event) => {
-                      const next = state.settings.providers.find((provider) => provider.id === event.target.value) ?? null;
-                      setProviderDraft(next);
-                      setPresetId(next?.providerPresetId ?? "deepseek");
-                      setModelsText(buildModelsText(next?.models ?? []));
-                      setPlaygroundProviderId(next?.id ?? "");
-                      setPlaygroundModelId(next?.defaultModel ?? "");
+                      requestReplaceProviderDraft({
+                        kind: "switch-provider",
+                        providerId: event.target.value
+                      });
                     }}
                   >
                     {state.settings.providers.map((provider) => (
@@ -1264,11 +1367,41 @@ export function App() {
                   ))}
                 </div>
 
+                <div className={providerDraftStatus.hasUnsavedChanges ? "draft-status-banner warning" : "draft-status-banner success"}>
+                  <strong>{providerDraftStatus.title}</strong>
+                  <p>{providerDraftStatus.detail}</p>
+                </div>
+
                 <div className="button-stack">
-                  <button className="ghost-button" onClick={handleFetchModels}>拉取模型</button>
-                  <button className="ghost-button" onClick={handleTestProvider}>测试 Provider</button>
+                  <button
+                    className="ghost-button"
+                    disabled={!providerActionAvailability.fetchModels.enabled}
+                    title={providerActionAvailability.fetchModels.reason ?? undefined}
+                    onClick={handleFetchModels}
+                  >
+                    拉取模型
+                  </button>
+                  <button
+                    className="ghost-button"
+                    disabled={!providerActionAvailability.testProvider.enabled}
+                    title={providerActionAvailability.testProvider.reason ?? undefined}
+                    onClick={handleTestProvider}
+                  >
+                    测试 Provider
+                  </button>
                   <button onClick={handleSaveProvider}>保存配置</button>
                 </div>
+                {providerActionHints.length > 0 ? (
+                  <div className="action-hints">
+                    {providerActionHints.map((hint) => (
+                      <p key={hint}>{hint}</p>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="action-hints success">
+                    <p>当前 Provider 已满足最小连通性前置条件，可以直接拉取模型或做测试。</p>
+                  </div>
+                )}
               </>
             ) : null}
           </section>
@@ -1400,6 +1533,17 @@ export function App() {
                 </>
               ) : null}
             </div>
+            {kiroActionHints.length > 0 ? (
+              <div className="action-hints">
+                {kiroActionHints.map((hint) => (
+                  <p key={hint}>{hint}</p>
+                ))}
+              </div>
+            ) : (
+              <div className="action-hints success">
+                <p>当前 Kiro 路由动作前置条件已满足，可以继续应用配置、诊断或恢复。</p>
+              </div>
+            )}
           </section>
         </aside>
 
@@ -1501,6 +1645,30 @@ export function App() {
                 </div>
                 <button className="ghost-button compact-button" onClick={() => openResource("quickstart")}>打开完整指南</button>
               </div>
+              <section className="setup-summary-card">
+                <div className="setup-summary-head">
+                  <div>
+                    <span className="panel-tag">Blockers</span>
+                    <strong>{setupWorkspaceSummary.title}</strong>
+                  </div>
+                  <span className="tiny-meta">{setupWorkspaceSummary.blockerCount} 项</span>
+                </div>
+                <p className="setup-summary-detail">{setupWorkspaceSummary.detail}</p>
+                <div className="setup-summary-list">
+                  {setupWorkspaceSummary.items.map((item) => (
+                    <article key={`${item.source}-${item.id}`} className="setup-summary-item">
+                      <div className="setup-summary-copy">
+                        <span>{item.source === "readiness" ? "运行时阻塞" : "接入步骤"}</span>
+                        <strong>{item.title}</strong>
+                        <p>{item.detail}</p>
+                      </div>
+                      <button className="ghost-button compact-button" onClick={() => handleSetupSummaryAction(item)}>
+                        {item.actionLabel}
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              </section>
               <div className="setup-workspace-grid">
                 {quickstartChecklist.map((item, index) => (
                   <div key={item.id} className={`quickstart-inline-item ${item.done ? "done" : ""} ${item.current ? "current" : ""}`}>
@@ -1980,5 +2148,25 @@ export function App() {
     </div>
   );
 
-  return view === "home" ? home : consoleView;
+  return (
+    <>
+      {view === "home" ? home : consoleView}
+      {pendingProviderReplaceAction ? (
+        <div className="modal-backdrop" role="presentation">
+          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="provider-draft-confirm-title">
+            <div className="confirm-dialog-copy">
+              <span className="panel-tag">草稿确认</span>
+              <h3 id="provider-draft-confirm-title">当前 Provider 有未保存的草稿</h3>
+              <p>{providerDraftStatus.detail}</p>
+              <p>继续后会覆盖当前表单中的修改。</p>
+            </div>
+            <div className="confirm-dialog-actions">
+              <button className="ghost-button" onClick={cancelPendingProviderReplaceAction}>继续编辑</button>
+              <button onClick={confirmPendingProviderReplaceAction}>仍然覆盖</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }

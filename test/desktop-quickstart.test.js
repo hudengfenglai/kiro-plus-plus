@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   buildKiroActionAvailability,
+  buildProviderActionAvailability,
+  buildProviderDraftStatus,
+  shouldPromptBeforeReplacingProviderDraft,
+  buildSetupWorkspaceSummary,
   buildQuickstartChecklist,
   summarizeQuickstartChecklist
 } from "../desktop/shared/quickstart.js";
@@ -398,4 +402,267 @@ test("buildKiroActionAvailability enables route actions when proxy, Kiro, and BY
   assert.equal(actions.toggleByok.enabled, true);
   assert.equal(actions.diagnose.enabled, true);
   assert.equal(actions.restore.enabled, true);
+});
+
+test("buildProviderActionAvailability disables fetch and test until provider base url is ready", () => {
+  const actions = buildProviderActionAvailability(makeState({
+    settings: {
+      selectedProviderId: "deepseek",
+      isByokEnabled: false,
+      lastSuccessfulProviderTest: null,
+      lastAppliedKiroBackup: null,
+      providers: [
+        {
+          id: "deepseek",
+          providerPresetId: "deepseek",
+          type: "openai-compatible",
+          label: "DeepSeek",
+          baseUrl: "",
+          defaultModel: "deepseek-v4-pro",
+          models: []
+        }
+      ],
+      kiro: {
+        autoApplyOnLaunch: false,
+        defaultEndpointPort: 43119
+      },
+      logging: {
+        captureHeaders: true,
+        captureBodies: false
+      },
+      runtime: {
+        exportHistory: [],
+        lastExportBundle: null,
+        lastLaunchAttempt: null,
+        lastBootstrapAttempt: null,
+        selectedExportBundleName: null
+      }
+    }
+  }));
+
+  assert.equal(actions.save.enabled, true);
+  assert.equal(actions.fetchModels.enabled, false);
+  assert.match(actions.fetchModels.reason ?? "", /Base URL/);
+  assert.equal(actions.testProvider.enabled, false);
+  assert.match(actions.testProvider.reason ?? "", /Base URL/);
+});
+
+test("buildProviderActionAvailability reports default model mismatch after provider base url exists", () => {
+  const actions = buildProviderActionAvailability(makeState({
+    settings: {
+      selectedProviderId: "deepseek",
+      isByokEnabled: false,
+      lastSuccessfulProviderTest: null,
+      lastAppliedKiroBackup: null,
+      providers: [
+        {
+          id: "deepseek",
+          providerPresetId: "deepseek",
+          type: "openai-compatible",
+          label: "DeepSeek",
+          baseUrl: "https://api.deepseek.com",
+          defaultModel: "deepseek-v4-pro",
+          models: [
+            {
+              id: "deepseek-v4-flash",
+              name: "deepseek-v4-flash",
+              description: "BYOK routed model",
+              note: ""
+            }
+          ]
+        }
+      ],
+      kiro: {
+        autoApplyOnLaunch: false,
+        defaultEndpointPort: 43119
+      },
+      logging: {
+        captureHeaders: true,
+        captureBodies: false
+      },
+      runtime: {
+        exportHistory: [],
+        lastExportBundle: null,
+        lastLaunchAttempt: null,
+        lastBootstrapAttempt: null,
+        selectedExportBundleName: null
+      }
+    }
+  }));
+
+  assert.equal(actions.fetchModels.enabled, true);
+  assert.equal(actions.testProvider.enabled, false);
+  assert.match(actions.testProvider.reason ?? "", /defaultModel/);
+});
+
+test("buildProviderActionAvailability blocks provider test when api key readiness issue exists", () => {
+  const actions = buildProviderActionAvailability(makeState({
+    readinessIssues: [
+      {
+        key: "provider-api-key",
+        severity: "error",
+        title: "Provider API Key 尚未保存",
+        detail: "DeepSeek 还没有可用的 API Key。",
+        focus: "providers",
+        action: "重新保存 API Key"
+      }
+    ]
+  }));
+
+  assert.equal(actions.fetchModels.enabled, false);
+  assert.match(actions.fetchModels.reason ?? "", /API Key/);
+  assert.equal(actions.testProvider.enabled, false);
+  assert.match(actions.testProvider.reason ?? "", /API Key/);
+});
+
+test("buildProviderActionAvailability allows fetch and test when api key draft is present", () => {
+  const actions = buildProviderActionAvailability(makeState({
+    readinessIssues: [
+      {
+        key: "provider-api-key",
+        severity: "error",
+        title: "Provider API Key 尚未保存",
+        detail: "DeepSeek 还没有可用的 API Key。",
+        focus: "providers",
+        action: "重新保存 API Key"
+      }
+    ]
+  }), {
+    hasDraftApiKey: true
+  });
+
+  assert.equal(actions.fetchModels.enabled, true);
+  assert.equal(actions.fetchModels.reason, null);
+  assert.equal(actions.testProvider.enabled, true);
+  assert.equal(actions.testProvider.reason, null);
+});
+
+test("buildProviderActionAvailability enables fetch and test when provider draft is minimally valid", () => {
+  const actions = buildProviderActionAvailability(makeState());
+
+  assert.equal(actions.save.enabled, true);
+  assert.equal(actions.fetchModels.enabled, true);
+  assert.equal(actions.fetchModels.reason, null);
+  assert.equal(actions.testProvider.enabled, true);
+  assert.equal(actions.testProvider.reason, null);
+});
+
+test("buildProviderDraftStatus reports clean state when draft matches saved provider and no api key draft exists", () => {
+  const state = makeState();
+  const savedProvider = state.settings.providers[0];
+  const status = buildProviderDraftStatus({
+    savedProfile: savedProvider,
+    draftProfile: savedProvider,
+    draftModels: savedProvider.models,
+    hasDraftApiKey: false
+  });
+
+  assert.equal(status.hasUnsavedChanges, false);
+  assert.match(status.title, /已同步/);
+});
+
+test("buildProviderDraftStatus reports unsaved state when api key draft exists", () => {
+  const state = makeState();
+  const savedProvider = state.settings.providers[0];
+  const status = buildProviderDraftStatus({
+    savedProfile: savedProvider,
+    draftProfile: savedProvider,
+    draftModels: savedProvider.models,
+    hasDraftApiKey: true
+  });
+
+  assert.equal(status.hasUnsavedChanges, true);
+  assert.match(status.detail, /API Key/);
+});
+
+test("buildProviderDraftStatus reports unsaved state when model draft differs from saved provider", () => {
+  const state = makeState();
+  const savedProvider = state.settings.providers[0];
+  const status = buildProviderDraftStatus({
+    savedProfile: savedProvider,
+    draftProfile: savedProvider,
+    draftModels: [
+      ...savedProvider.models,
+      {
+        id: "deepseek-v4-flash",
+        name: "deepseek-v4-flash",
+        description: "BYOK routed model",
+        note: ""
+      }
+    ],
+    hasDraftApiKey: false
+  });
+
+  assert.equal(status.hasUnsavedChanges, true);
+  assert.match(status.detail, /保存配置/);
+});
+
+test("shouldPromptBeforeReplacingProviderDraft returns false when draft is already synced", () => {
+  const state = makeState();
+  const savedProvider = state.settings.providers[0];
+  const status = buildProviderDraftStatus({
+    savedProfile: savedProvider,
+    draftProfile: savedProvider,
+    draftModels: savedProvider.models,
+    hasDraftApiKey: false
+  });
+
+  assert.equal(shouldPromptBeforeReplacingProviderDraft(status), false);
+});
+
+test("shouldPromptBeforeReplacingProviderDraft returns true when there are unsaved provider edits", () => {
+  const state = makeState();
+  const savedProvider = state.settings.providers[0];
+  const status = buildProviderDraftStatus({
+    savedProfile: savedProvider,
+    draftProfile: {
+      ...savedProvider,
+      label: "DeepSeek Draft"
+    },
+    draftModels: savedProvider.models,
+    hasDraftApiKey: false
+  });
+
+  assert.equal(shouldPromptBeforeReplacingProviderDraft(status), true);
+});
+
+test("buildSetupWorkspaceSummary prioritizes runtime readiness issues during setup mode", () => {
+  const summary = buildSetupWorkspaceSummary(makeState({
+    readinessIssues: [
+      {
+        key: "provider-api-key-missing",
+        severity: "error",
+        title: "Provider Key 缺失",
+        detail: "当前还没有可用的 API Key。",
+        focus: "providers",
+        action: "去填写 Key"
+      },
+      {
+        key: "kiro-not-found",
+        severity: "error",
+        title: "还没有检测到 Kiro",
+        detail: "请先确认 Kiro 安装路径。",
+        focus: "kiro",
+        action: "去检测 Kiro"
+      }
+    ]
+  }));
+
+  assert.equal(summary.blockerCount, 2);
+  assert.match(summary.title, /2 个阻塞项/);
+  assert.equal(summary.items.length, 2);
+  assert.equal(summary.items[0]?.source, "readiness");
+  assert.equal(summary.items[0]?.actionLabel, "去填写 Key");
+  assert.equal(summary.items[0]?.focus, "providers");
+});
+
+test("buildSetupWorkspaceSummary falls back to pending quickstart items when readiness issues are absent", () => {
+  const summary = buildSetupWorkspaceSummary(makeState());
+
+  assert.equal(summary.blockerCount, 2);
+  assert.equal(summary.items.length, 2);
+  assert.equal(summary.items[0]?.source, "quickstart");
+  assert.equal(summary.items[0]?.id, "test");
+  assert.equal(summary.items[0]?.actionLabel, "去做测试");
+  assert.match(summary.title, /还差 2 步/);
 });

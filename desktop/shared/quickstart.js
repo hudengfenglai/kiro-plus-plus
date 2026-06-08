@@ -40,6 +40,40 @@ function hasRecoverableBackup(state) {
   return Boolean(state.kiroDetection.lastBackup?.backupPath || state.lastAppliedKiroBackup?.backupPath);
 }
 
+function hasProviderBaseUrl(state) {
+  const provider = getSelectedProvider(state);
+  return Boolean(provider?.baseUrl?.trim());
+}
+
+function hasValidDefaultModel(state) {
+  const provider = getSelectedProvider(state);
+  if (!provider) return false;
+  if (!provider.defaultModel.trim()) return false;
+  return provider.models.some((model) => model.id === provider.defaultModel);
+}
+
+function normalizeProfileForDraftCompare(profile, draftModels) {
+  if (!profile) return null;
+  return JSON.stringify({
+    id: profile.id,
+    providerPresetId: profile.providerPresetId ?? null,
+    type: profile.type,
+    label: profile.label,
+    baseUrl: profile.baseUrl,
+    defaultModel: profile.defaultModel,
+    models: (draftModels ?? profile.models ?? []).map((model) => ({
+      id: model.id,
+      name: model.name,
+      description: model.description ?? "",
+      note: model.note ?? ""
+    }))
+  });
+}
+
+function hasProviderApiKeyIssue(state) {
+  return (state.readinessIssues ?? []).some((issue) => issue.key === "provider-api-key");
+}
+
 export function buildQuickstartChecklist(state) {
   const provider = getSelectedProvider(state);
   const configuredProvider = hasConfiguredProvider(state);
@@ -199,5 +233,120 @@ export function buildKiroActionAvailability(state) {
       enabled: hasBackup,
       reason: hasBackup ? null : "还没有可恢复的备份。"
     }
+  };
+}
+
+export function buildProviderActionAvailability(state, options = {}) {
+  const hasBaseUrl = hasProviderBaseUrl(state);
+  const hasModels = hasProviderModels(state);
+  const hasDefaultModel = hasValidDefaultModel(state);
+  const hasDraftApiKey = Boolean(options.hasDraftApiKey);
+  const missingApiKey = hasProviderApiKeyIssue(state) && !hasDraftApiKey;
+
+  return {
+    save: {
+      enabled: true,
+      reason: null
+    },
+    fetchModels: {
+      enabled: hasBaseUrl && !missingApiKey,
+      reason: !hasBaseUrl
+        ? "请先填写可用的 Base URL。"
+        : missingApiKey
+          ? "请先保存可用的 API Key。"
+          : null
+    },
+    testProvider: {
+      enabled: hasBaseUrl && hasModels && hasDefaultModel && !missingApiKey,
+      reason: !hasBaseUrl
+        ? "请先填写可用的 Base URL。"
+        : missingApiKey
+          ? "请先保存可用的 API Key。"
+        : !hasModels
+          ? "请先拉取模型或补充 models[]。"
+          : !hasDefaultModel
+            ? "请先让 defaultModel 命中 models[]。"
+            : null
+    }
+  };
+}
+
+export function buildProviderDraftStatus({
+  savedProfile,
+  draftProfile,
+  draftModels,
+  hasDraftApiKey = false
+}) {
+  const savedSnapshot = normalizeProfileForDraftCompare(savedProfile, savedProfile?.models ?? []);
+  const draftSnapshot = normalizeProfileForDraftCompare(draftProfile, draftModels);
+  const hasStructureChanges = savedSnapshot !== draftSnapshot;
+  const hasUnsavedChanges = hasStructureChanges || Boolean(hasDraftApiKey);
+
+  if (!hasUnsavedChanges) {
+    return {
+      hasUnsavedChanges: false,
+      title: "当前草稿已同步",
+      detail: "表单里的 Provider 配置和已保存状态一致。"
+    };
+  }
+
+  if (hasDraftApiKey) {
+    return {
+      hasUnsavedChanges: true,
+      title: "当前有未保存的草稿",
+      detail: "你已经输入了新的 API Key，保存配置后会写入系统安全存储。"
+    };
+  }
+
+  return {
+    hasUnsavedChanges: true,
+    title: "当前有未保存的草稿",
+    detail: "Provider 字段或模型列表已修改，记得先点击“保存配置”。"
+  };
+}
+
+export function shouldPromptBeforeReplacingProviderDraft(status) {
+  return Boolean(status?.hasUnsavedChanges);
+}
+
+export function buildSetupWorkspaceSummary(state) {
+  const readinessItems = (state.readinessIssues ?? []).map((issue) => ({
+    id: issue.key,
+    source: "readiness",
+    title: issue.title,
+    detail: issue.detail,
+    focus: issue.focus,
+    actionLabel: issue.action
+  }));
+
+  if (readinessItems.length > 0) {
+    return {
+      blockerCount: readinessItems.length,
+      title: `当前还有 ${readinessItems.length} 个阻塞项`,
+      detail: "建议先处理这些运行时阻塞，再继续下面的接入步骤。",
+      items: readinessItems.slice(0, 3)
+    };
+  }
+
+  const pendingQuickstartItems = buildQuickstartChecklist(state)
+    .filter((item) => !item.done)
+    .map((item) => ({
+      id: item.id,
+      source: "quickstart",
+      title: item.title,
+      detail: item.detail,
+      focus: item.focus,
+      actionLabel: item.actionLabel
+    }));
+
+  return {
+    blockerCount: pendingQuickstartItems.length,
+    title: pendingQuickstartItems.length > 0
+      ? `还差 ${pendingQuickstartItems.length} 步完成最小接入`
+      : "当前没有明显阻塞项",
+    detail: pendingQuickstartItems.length > 0
+      ? "建议优先处理下面这些还未完成的接入步骤。"
+      : "基础接入已经完成，可以直接进入常规工作台继续验证。",
+    items: pendingQuickstartItems.slice(0, 3)
   };
 }

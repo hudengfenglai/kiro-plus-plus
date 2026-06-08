@@ -4,8 +4,8 @@ import { spawn } from "node:child_process";
 
 import { normalizeAppSettings } from "../../src/config.js";
 
-function withProvider(settings, profile) {
-  const providers = settings.providers.filter((item) => item.id !== profile.id);
+function withProvider(settings, profile, previousProviderId = null) {
+  const providers = settings.providers.filter((item) => item.id !== profile.id && item.id !== previousProviderId);
   providers.push(profile);
   return normalizeAppSettings({
     ...settings,
@@ -211,6 +211,13 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
 
 function describeProvider(profile) {
   return profile?.label ?? profile?.id ?? "Provider";
+}
+
+async function deleteSecretIfSupported(secretStore, account) {
+  if (!account || typeof secretStore?.delete !== "function") {
+    return;
+  }
+  await secretStore.delete(account);
 }
 
 function getProviderModelIssue(profile, modelId = profile?.defaultModel) {
@@ -644,9 +651,25 @@ export class DesktopRuntime {
 
   async saveProvider({ profile, apiKey }) {
     const current = await this.settingsStore.load();
-    const next = await this.saveSettings(withProvider(current, profile));
+    const previousProviderId = current.selectedProviderId;
+    const next = await this.saveSettings(withProvider(current, profile, previousProviderId));
+    const previousSecretAccount = previousProviderId ? `provider:${previousProviderId}:apiKey` : null;
+    const nextSecretAccount = `provider:${profile.id}:apiKey`;
+
     if (apiKey) {
       await this.secretStore.set(`provider:${profile.id}:apiKey`, apiKey);
+      if (previousSecretAccount && previousSecretAccount !== nextSecretAccount) {
+        await deleteSecretIfSupported(this.secretStore, previousSecretAccount);
+      }
+      return next;
+    }
+
+    if (previousProviderId && previousProviderId !== profile.id) {
+      const previousApiKey = await this.getProviderApiKey(previousProviderId);
+      if (previousApiKey) {
+        await this.secretStore.set(nextSecretAccount, previousApiKey);
+        await deleteSecretIfSupported(this.secretStore, previousSecretAccount);
+      }
     }
     return next;
   }

@@ -496,6 +496,66 @@ pre {
   gap: 10px;
 }
 
+.setup-summary-card {
+  margin-bottom: 12px;
+  padding: 14px;
+  border: 1px solid var(--border-active);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-soft-bg) 88%, var(--accent) 12%);
+  display: grid;
+  gap: 12px;
+}
+
+.setup-summary-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-summary-head strong {
+  display: block;
+  margin-top: 6px;
+}
+
+.setup-summary-detail {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.setup-summary-list {
+  display: grid;
+  gap: 10px;
+}
+
+.setup-summary-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-bg);
+}
+
+.setup-summary-copy span {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.setup-summary-copy strong {
+  display: block;
+  margin: 6px 0;
+}
+
+.setup-summary-copy p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
 .setup-rail-panel {
   border-color: var(--border-active);
 }
@@ -683,6 +743,55 @@ pre {
 .model-chip.active {
   border-color: var(--border-active);
   color: var(--chip-active);
+}
+
+.draft-status-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+}
+
+.draft-status-banner.warning {
+  border-color: rgba(235, 177, 92, 0.24);
+}
+
+.draft-status-banner.success {
+  border-color: rgba(106, 201, 142, 0.22);
+  background: color-mix(in srgb, var(--panel-soft-bg) 86%, var(--success) 14%);
+}
+
+.draft-status-banner strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.draft-status-banner p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+
+.action-hints {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--panel-soft-bg);
+}
+
+.action-hints.success {
+  border-color: rgba(106, 201, 142, 0.22);
+  background: color-mix(in srgb, var(--panel-soft-bg) 86%, var(--success) 14%);
+}
+
+.action-hints p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 13px;
 }
 
 .workspace {
@@ -1108,6 +1217,45 @@ pre {
 
 .status-detail {
   min-height: 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(8, 10, 16, 0.62);
+  backdrop-filter: blur(6px);
+  z-index: 40;
+}
+
+.confirm-dialog {
+  width: min(460px, 100%);
+  padding: 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--panel-bg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  display: grid;
+  gap: 16px;
+}
+
+.confirm-dialog-copy h3 {
+  margin: 8px 0 10px;
+}
+
+.confirm-dialog-copy p {
+  margin: 0 0 8px;
+  color: var(--text-soft);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .state-pill.running {
