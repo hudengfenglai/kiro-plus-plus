@@ -230,6 +230,14 @@ pre {
   background: color-mix(in srgb, var(--panel-alt-bg) 82%, var(--success) 18%);
 }
 
+.topbar-mode-pill.bridge.warning {
+  border-color: color-mix(in srgb, var(--warning) 58%, var(--border-strong) 42%);
+}
+
+.topbar-mode-pill.bridge.error {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border-strong) 42%);
+}
+
 .landing-hero,
 .home-card,
 .hero-side-card,
@@ -241,6 +249,16 @@ pre {
   border: 1px solid var(--border-soft);
   background: var(--panel-bg);
   border-radius: 8px;
+}
+
+.bridge-card.warning,
+.kpi-card.bridge.warning {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--border-soft) 58%);
+}
+
+.bridge-card.error,
+.kpi-card.bridge.error {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border-soft) 58%);
 }
 
 .landing-hero {

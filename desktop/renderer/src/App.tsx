@@ -14,6 +14,7 @@ import {
   summarizeQuickstartChecklist,
   type QuickstartItem
 } from "../../shared/quickstart";
+import { inspectDesktopBridge } from "../../shared/bridge-status";
 import type {
   AppState,
   DiagnosticsExportBundle,
@@ -400,6 +401,7 @@ export function App() {
   const [pendingProviderReplaceAction, setPendingProviderReplaceAction] = useState<PendingProviderReplaceAction>(null);
 
   const providerOptions = useMemo(() => Object.values(PROVIDER_PRESETS), []);
+  const bridgeStatus = useMemo(() => inspectDesktopBridge(window.kiroPlusApp), []);
 
   const selectedProvider = useMemo(
     () =>
@@ -1141,6 +1143,15 @@ export function App() {
                 <div><dt>Endpoint</dt><dd>{state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
               </dl>
             </div>
+            <div className={`hero-side-card bridge-card ${bridgeStatus.tone}`}>
+              <span className="panel-tag">Bridge</span>
+              <h3>{bridgeStatus.summary}</h3>
+              <p>{bridgeStatus.detail}</p>
+              <dl className="kv-grid compact">
+                <div><dt>可用方法</dt><dd>{bridgeStatus.presentMethodCount}/{bridgeStatus.totalMethodCount}</dd></div>
+                <div><dt>状态</dt><dd>{bridgeStatus.complete ? "完整" : bridgeStatus.available ? "需更新安装包" : "桥接缺失"}</dd></div>
+              </dl>
+            </div>
             <div className="hero-side-card quickstart-card">
               <span className="panel-tag">Quickstart</span>
               <h3>最短上手</h3>
@@ -1240,6 +1251,10 @@ export function App() {
           <div className={`topbar-mode-pill ${quickstartSummary.isComplete ? "ready" : "setup"}`}>
             <span>{quickstartSummary.modeLabel}</span>
             <strong>{quickstartSummary.completedCount}/{quickstartSummary.totalCount}</strong>
+          </div>
+          <div className={`topbar-mode-pill bridge ${bridgeStatus.tone}`}>
+            <span>Bridge</span>
+            <strong>{bridgeStatus.complete ? "完整" : "需更新"}</strong>
           </div>
           <button
             className="ghost-button"
@@ -1643,6 +1658,10 @@ export function App() {
               <div className="kpi-card">
                 <span>代理状态</span>
                 <strong>{proxyStateLabels[state.proxyStatus.state]}</strong>
+              </div>
+              <div className={`kpi-card bridge ${bridgeStatus.tone}`}>
+                <span>桌面桥接</span>
+                <strong>{bridgeStatus.complete ? "完整" : "需更新安装包"}</strong>
               </div>
             </div>
           </section>

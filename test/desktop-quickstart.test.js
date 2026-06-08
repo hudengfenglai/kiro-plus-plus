@@ -10,6 +10,7 @@ import {
   buildQuickstartChecklist,
   summarizeQuickstartChecklist
 } from "../desktop/shared/quickstart.js";
+import { getRequiredBridgeMethods, inspectDesktopBridge } from "../desktop/shared/bridge-status.js";
 
 function makeState(overrides = {}) {
   const provider = {
@@ -665,4 +666,46 @@ test("buildSetupWorkspaceSummary falls back to pending quickstart items when rea
   assert.equal(summary.items[0]?.id, "test");
   assert.equal(summary.items[0]?.actionLabel, "去做测试");
   assert.match(summary.title, /还差 2 步/);
+});
+
+test("inspectDesktopBridge reports complete bridge when all methods are present", () => {
+  const bridge = Object.fromEntries(
+    getRequiredBridgeMethods().map((method) => [method, () => undefined])
+  );
+
+  const status = inspectDesktopBridge(bridge);
+
+  assert.equal(status.available, true);
+  assert.equal(status.complete, true);
+  assert.equal(status.presentMethodCount, status.totalMethodCount);
+  assert.deepEqual(status.missingMethods, []);
+  assert.equal(status.tone, "success");
+});
+
+test("inspectDesktopBridge reports missing methods for outdated packaged bridge", () => {
+  const bridge = {
+    getState: () => undefined,
+    bootstrap: () => undefined,
+    launchKiroWithProxy: () => undefined
+  };
+
+  const status = inspectDesktopBridge(bridge);
+
+  assert.equal(status.available, true);
+  assert.equal(status.complete, false);
+  assert.equal(status.tone, "warning");
+  assert.ok(status.missingMethods.includes("fetchModels"));
+  assert.ok(status.missingMethods.includes("diagnoseKiro"));
+  assert.match(status.detail, /请重新安装最新版 Kiro\+\+ Console/);
+});
+
+test("inspectDesktopBridge reports unavailable bridge when preload did not inject", () => {
+  const status = inspectDesktopBridge(undefined);
+
+  assert.equal(status.available, false);
+  assert.equal(status.complete, false);
+  assert.equal(status.presentMethodCount, 0);
+  assert.equal(status.totalMethodCount, getRequiredBridgeMethods().length);
+  assert.equal(status.tone, "error");
+  assert.match(status.detail, /没有注入 Kiro\+\+ 桌面桥接/);
 });
