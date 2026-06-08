@@ -32,10 +32,21 @@ function findRepoUrl(text) {
 function findPlaceholders(file, text) {
   const matches = [...text.matchAll(/<([A-Z0-9_]+)>/g)];
   const allowed = new Set(["<RELEASE_DOWNLOAD_URL>", "<GITHUB_REPO_URL>"]);
+  const unique = new Set();
   return matches.map((match) => ({
     file,
     placeholder: `<${match[1]}>`
-  })).filter((item) => allowed.has(item.placeholder));
+  })).filter((item) => {
+    if (!allowed.has(item.placeholder)) {
+      return false;
+    }
+    const key = `${item.file}::${item.placeholder}`;
+    if (unique.has(key)) {
+      return false;
+    }
+    unique.add(key);
+    return true;
+  });
 }
 
 export async function buildReleasePrepReport({

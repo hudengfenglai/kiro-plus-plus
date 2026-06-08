@@ -63,6 +63,47 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
   }
 });
 
+test("buildReleasePrepReport de-duplicates repeated publish placeholders", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-dedup-"));
+
+  try {
+    await mkdir(join(workspace, "docs", "release"), { recursive: true });
+    await mkdir(join(workspace, "release"), { recursive: true });
+
+    await writeFile(join(workspace, "package.json"), JSON.stringify({
+      name: "kiro-plus-plus",
+      version: "0.1.0"
+    }, null, 2));
+
+    await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(
+      join(workspace, "docs", "release", "linuxdo-post.md"),
+      [
+        "# post",
+        "下载一：`<RELEASE_DOWNLOAD_URL>`",
+        "下载二：`<RELEASE_DOWNLOAD_URL>`"
+      ].join("\n")
+    );
+    await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
+    await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
+
+    const report = await buildReleasePrepReport({ rootDir: workspace });
+
+    assert.deepEqual(report.placeholders, [
+      {
+        file: "docs/release/linuxdo-post.md",
+        placeholder: "<RELEASE_DOWNLOAD_URL>"
+      }
+    ]);
+
+    const text = formatReleasePrepReport(report);
+    assert.match(text, /linuxdo post placeholders: 1/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
 test("buildReleasePrepReport reports missing artifacts and docs", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-missing-"));
 
