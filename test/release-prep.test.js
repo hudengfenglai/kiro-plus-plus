@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -287,4 +287,25 @@ test("release-prep cli supports --markdown output", async () => {
   assert.match(stdout, /^# Kiro\+\+ 0\.1\.0 Release Prep/m);
   assert.doesNotMatch(stdout, /^Kiro\+\+ release prep/m);
   assert.match(stdout, /## Summary/);
+});
+
+test("release-prep cli supports --json output", async () => {
+  const { stdout } = await execFileAsync("node", ["./scripts/release-prep.mjs", "--json"], {
+    cwd: process.cwd()
+  });
+
+  const payload = JSON.parse(stdout);
+  assert.equal(payload.version, "0.1.0");
+  assert.equal(typeof payload.repoUrl, "string");
+  assert.equal(typeof payload.git.clean, "boolean");
+  assert.equal(typeof payload.artifact.exists, "boolean");
+  assert.ok(Array.isArray(payload.nextActions));
+});
+
+test("package.json exposes release prep output aliases", async () => {
+  const packageJson = JSON.parse(await readFile(join(process.cwd(), "package.json"), "utf8"));
+
+  assert.equal(packageJson.scripts["release:prep"], "node ./scripts/release-prep.mjs");
+  assert.equal(packageJson.scripts["release:prep:markdown"], "node ./scripts/release-prep.mjs --markdown");
+  assert.equal(packageJson.scripts["release:prep:json"], "node ./scripts/release-prep.mjs --json");
 });

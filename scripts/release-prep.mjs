@@ -209,9 +209,11 @@ const cliArgs = process.argv.slice(2);
 if (entryPath && currentFilePath === entryPath) {
   try {
     const report = await buildReleasePrepReport();
-    const output = cliArgs.includes("--markdown")
-      ? formatReleasePrepMarkdown(report)
-      : formatReleasePrepReport(report);
+    const output = cliArgs.includes("--json")
+      ? JSON.stringify(report, null, 2)
+      : cliArgs.includes("--markdown")
+        ? formatReleasePrepMarkdown(report)
+        : formatReleasePrepReport(report);
     process.stdout.write(`${output}\n`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
