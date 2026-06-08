@@ -28,3 +28,10 @@ export function buildDesktopHealthSummary(input: {
   };
 }): DesktopHealthSummary;
 export function formatDesktopHealthSummary(summary: DesktopHealthSummary): string;
+export function getDesktopHealthPrimaryAction(summary: DesktopHealthSummary): {
+  actionLabel: string;
+  actionKind: "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy" | "open-playground";
+  focus: "status" | "providers" | "kiro" | "logs" | "playground";
+  title: string;
+  detail: string;
+};

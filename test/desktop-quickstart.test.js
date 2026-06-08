@@ -11,7 +11,7 @@ import {
   summarizeQuickstartChecklist
 } from "../desktop/shared/quickstart.js";
 import { getRequiredBridgeMethods, inspectDesktopBridge } from "../desktop/shared/bridge-status.js";
-import { buildDesktopHealthSummary, formatDesktopHealthSummary } from "../desktop/shared/desktop-health.js";
+import { buildDesktopHealthSummary, formatDesktopHealthSummary, getDesktopHealthPrimaryAction } from "../desktop/shared/desktop-health.js";
 
 function makeState(overrides = {}) {
   const provider = {
@@ -790,4 +790,52 @@ test("formatDesktopHealthSummary renders item actions into shareable text", () =
   assert.match(text, /Desktop health severity: warning/);
   assert.match(text, /当前安装包桥接不完整 -> 查看 Quickstart/);
   assert.match(text, /本地代理尚未运行 -> 启动代理/);
+});
+
+test("getDesktopHealthPrimaryAction returns the first actionable item or a ready fallback", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge({
+      getState: () => undefined,
+      bootstrap: () => undefined,
+      launchKiroWithProxy: () => undefined
+    }),
+    appMeta: null,
+    proxyStatus: {
+      state: "stopped",
+      endpoint: null,
+      error: null
+    },
+    kiroDetection: {
+      installed: false,
+      detectionHint: "尚未检测到 Kiro 安装。"
+    }
+  });
+
+  const action = getDesktopHealthPrimaryAction(summary);
+  assert.equal(action.actionLabel, "查看 Quickstart");
+  assert.equal(action.actionKind, "open-quickstart");
+
+  const readyAction = getDesktopHealthPrimaryAction(buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge(
+      Object.fromEntries(getRequiredBridgeMethods().map((method) => [method, () => undefined]))
+    ),
+    appMeta: {
+      version: "0.1.0",
+      isPackaged: true,
+      source: "packaged",
+      buildLabel: "安装包",
+      appPath: "C:\\Program Files\\Kiro++ Console\\resources\\app.asar"
+    },
+    proxyStatus: {
+      state: "running",
+      endpoint: "http://127.0.0.1:43119",
+      error: null
+    },
+    kiroDetection: {
+      installed: true,
+      detectionHint: "已检测到 Kiro。"
+    }
+  }));
+  assert.equal(readyAction.actionLabel, "进入 Playground");
+  assert.equal(readyAction.actionKind, "open-playground");
 });

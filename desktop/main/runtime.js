@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 import { normalizeAppSettings } from "../../src/config.js";
-import { buildDesktopHealthSummary, formatDesktopHealthSummary } from "../shared/desktop-health.js";
+import { buildDesktopHealthSummary, formatDesktopHealthSummary, getDesktopHealthPrimaryAction } from "../shared/desktop-health.js";
 
 function withProvider(settings, profile, previousProviderId = null) {
   const providers = settings.providers.filter((item) => item.id !== profile.id && item.id !== previousProviderId);
@@ -202,6 +202,7 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
     proxyStatus,
     kiroDetection
   });
+  const desktopHealthPrimaryAction = getDesktopHealthPrimaryAction(desktopHealth);
   return [
     "Kiro++ diagnostics summary",
     `BYOK: ${settings.isByokEnabled ? "enabled" : "disabled"}`,
@@ -218,6 +219,7 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
     `Last launch attempt: ${launchAttempt ? `${launchAttempt.status} / ${launchAttempt.step}` : "-"}`,
     `Readiness issues: ${readinessIssues.length}`,
     `Primary issue: ${primaryIssue ? `${primaryIssue.title} -> ${primaryIssue.action}` : "-"}`,
+    `Recommended next action: ${desktopHealthPrimaryAction.title} -> ${desktopHealthPrimaryAction.actionLabel}`,
     ...readinessIssues.map((issue, index) => `Issue ${index + 1}: [${issue.severity}] ${issue.title} / ${issue.action}`),
     formatDesktopHealthSummary(desktopHealth),
     failure
@@ -813,6 +815,7 @@ export class DesktopRuntime {
         detectionHint: sharedState.kiroDetection.detectionHint
       }
     });
+    const desktopHealthPrimaryAction = getDesktopHealthPrimaryAction(desktopHealth);
     const exportedAt = this.now().toISOString();
     const stamp = exportedAt.replace(/[:.]/g, "-");
     const bundleName = `kiro-plus-plus-diagnostics-${stamp}`;
@@ -829,6 +832,7 @@ export class DesktopRuntime {
       exportedAt,
       summary: text,
       desktopHealth,
+      desktopHealthPrimaryAction,
       proxyStatus: sharedState.proxyStatus,
       kiroDetection: sharedState.kiroDetection,
       diagnose: sharedState.diagnose,
@@ -844,6 +848,7 @@ export class DesktopRuntime {
         summary: desktopHealth.summary,
         itemCount: desktopHealth.items.length
       },
+      desktopHealthPrimaryAction,
       files: {
         readme: "README.txt",
         summary: "summary.txt",

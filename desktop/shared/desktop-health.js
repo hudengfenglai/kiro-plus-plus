@@ -95,3 +95,24 @@ export function formatDesktopHealthSummary(summary) {
     )
   ].join("\n");
 }
+
+export function getDesktopHealthPrimaryAction(summary) {
+  const item = summary.items[0] ?? null;
+  if (!item) {
+    return {
+      actionLabel: "进入 Playground",
+      actionKind: "open-playground",
+      focus: "playground",
+      title: "当前环境已就绪",
+      detail: "可以直接做一次最小模型验证。"
+    };
+  }
+
+  return {
+    actionLabel: item.actionLabel,
+    actionKind: item.actionKind,
+    focus: item.focus,
+    title: item.title,
+    detail: item.detail
+  };
+}

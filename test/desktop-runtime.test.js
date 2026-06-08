@@ -544,12 +544,14 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.match(result.text, /requestId: demo-export/);
   assert.match(result.text, /Desktop health:/);
   assert.match(result.text, /Desktop health severity:/);
+  assert.match(result.text, /Recommended next action:/);
   const jsonText = await readFile(result.jsonPath, "utf8");
   const payload = JSON.parse(jsonText);
   assert.equal(payload.exportedAt, "2026-06-07T12:34:56.789Z");
   assert.match(payload.summary, /Kiro\+\+ diagnostics summary/);
   assert.equal(payload.desktopHealth.severity, "warning");
   assert.match(payload.desktopHealth.summary, /需要关注/);
+  assert.equal(payload.desktopHealthPrimaryAction.actionLabel, "查看 Quickstart");
   assert.equal(payload.proxyStatus.state, "stopped");
   assert.equal(payload.kiroDetection.installPath, "<path:Kiro.exe>");
   assert.equal(payload.kiroDetection.detectionHint, "已检测到 Kiro 安装：<path:Kiro.exe>");
@@ -563,6 +565,7 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.match(manifest.bundleName, /^kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z$/);
   assert.equal(manifest.desktopHealth.severity, "warning");
   assert.equal(typeof manifest.desktopHealth.itemCount, "number");
+  assert.equal(manifest.desktopHealthPrimaryAction.actionLabel, "查看 Quickstart");
   assert.equal(manifest.files.readme, "README.txt");
   assert.equal(manifest.files.summary, "summary.txt");
   assert.equal(manifest.files.snapshot, "snapshot.json");
