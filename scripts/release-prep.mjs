@@ -216,11 +216,20 @@ if (entryPath && currentFilePath === entryPath) {
     const writeMarkdownPath = writeMarkdownIndex >= 0
       ? cliArgs[writeMarkdownIndex + 1]
       : null;
+    const writeJsonIndex = cliArgs.indexOf("--write-json");
+    const writeJsonPath = writeJsonIndex >= 0
+      ? cliArgs[writeJsonIndex + 1]
+      : null;
 
     if (writeMarkdownPath) {
       const absoluteOutputPath = resolve(rootDir, writeMarkdownPath);
       await mkdir(dirname(absoluteOutputPath), { recursive: true });
       await writeFile(absoluteOutputPath, `${formatReleasePrepMarkdown(report)}\n`, "utf8");
+      process.stdout.write(`${absoluteOutputPath}\n`);
+    } else if (writeJsonPath) {
+      const absoluteOutputPath = resolve(rootDir, writeJsonPath);
+      await mkdir(dirname(absoluteOutputPath), { recursive: true });
+      await writeFile(absoluteOutputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
       process.stdout.write(`${absoluteOutputPath}\n`);
     } else {
       const output = cliArgs.includes("--json")

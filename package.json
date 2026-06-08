@@ -22,7 +22,8 @@
     "release:prep": "node ./scripts/release-prep.mjs",
     "release:prep:markdown": "node ./scripts/release-prep.mjs --markdown",
     "release:prep:json": "node ./scripts/release-prep.mjs --json",
-    "release:prep:write": "node ./scripts/release-prep.mjs --write-markdown release/release-summary.md"
+    "release:prep:write": "node ./scripts/release-prep.mjs --write-markdown release/release-summary.md",
+    "release:prep:write-json": "node ./scripts/release-prep.mjs --write-json release/release-summary.json"
   },
   "engines": {
     "node": ">=18"

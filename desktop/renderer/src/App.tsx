@@ -147,7 +147,18 @@ function describeError(error: unknown) {
 
 function requireDesktopApi() {
   if (window.kiroPlusApp) {
-    return window.kiroPlusApp;
+    return new Proxy(window.kiroPlusApp, {
+      get(target, prop, receiver) {
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value === "function") {
+          return value.bind(target);
+        }
+        if (value !== undefined) {
+          return value;
+        }
+        throw new Error(`当前安装包缺少桌面桥接方法：${String(prop)}。请重新安装最新版 Kiro++ Console。`);
+      }
+    });
   }
   throw new Error("桌面桥接不可用。请安装最新版 Kiro++ 后重新启动应用。");
 }
