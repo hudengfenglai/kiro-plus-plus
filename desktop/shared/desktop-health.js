@@ -84,3 +84,14 @@ export function buildDesktopHealthSummary({ bridgeStatus, appMeta, proxyStatus, 
     items
   };
 }
+
+export function formatDesktopHealthSummary(summary) {
+  return [
+    `Desktop health: ${summary.summary}`,
+    `Desktop health severity: ${summary.severity}`,
+    `Desktop health detail: ${summary.detail}`,
+    ...summary.items.map((item, index) =>
+      `Desktop health item ${index + 1}: [${item.severity}] ${item.title} -> ${item.actionLabel}`
+    )
+  ].join("\n");
+}

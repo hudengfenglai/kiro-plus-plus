@@ -11,7 +11,7 @@ import {
   summarizeQuickstartChecklist
 } from "../desktop/shared/quickstart.js";
 import { getRequiredBridgeMethods, inspectDesktopBridge } from "../desktop/shared/bridge-status.js";
-import { buildDesktopHealthSummary } from "../desktop/shared/desktop-health.js";
+import { buildDesktopHealthSummary, formatDesktopHealthSummary } from "../desktop/shared/desktop-health.js";
 
 function makeState(overrides = {}) {
   const provider = {
@@ -763,4 +763,31 @@ test("buildDesktopHealthSummary prioritizes bridge and build problems for outdat
   assert.ok(summary.items.some((item) => item.key === "build-meta-missing" && item.actionKind === "open-quickstart"));
   assert.ok(summary.items.some((item) => item.key === "proxy-not-running" && item.actionKind === "start-proxy"));
   assert.ok(summary.items.some((item) => item.key === "kiro-not-detected" && item.actionKind === "open-kiro"));
+});
+
+test("formatDesktopHealthSummary renders item actions into shareable text", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge({
+      getState: () => undefined,
+      bootstrap: () => undefined,
+      launchKiroWithProxy: () => undefined
+    }),
+    appMeta: null,
+    proxyStatus: {
+      state: "stopped",
+      endpoint: null,
+      error: null
+    },
+    kiroDetection: {
+      installed: false,
+      detectionHint: "尚未检测到 Kiro 安装。"
+    }
+  });
+
+  const text = formatDesktopHealthSummary(summary);
+
+  assert.match(text, /Desktop health:/);
+  assert.match(text, /Desktop health severity: warning/);
+  assert.match(text, /当前安装包桥接不完整 -> 查看 Quickstart/);
+  assert.match(text, /本地代理尚未运行 -> 启动代理/);
 });

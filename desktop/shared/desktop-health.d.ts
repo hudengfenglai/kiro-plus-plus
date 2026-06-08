@@ -27,3 +27,4 @@ export function buildDesktopHealthSummary(input: {
     detectionHint: string;
   };
 }): DesktopHealthSummary;
+export function formatDesktopHealthSummary(summary: DesktopHealthSummary): string;

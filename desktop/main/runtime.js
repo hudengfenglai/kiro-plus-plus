@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 import { normalizeAppSettings } from "../../src/config.js";
+import { buildDesktopHealthSummary, formatDesktopHealthSummary } from "../shared/desktop-health.js";
 
 function withProvider(settings, profile, previousProviderId = null) {
   const providers = settings.providers.filter((item) => item.id !== profile.id && item.id !== previousProviderId);
@@ -186,6 +187,21 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
   const primaryIssue = readinessIssues[0] ?? null;
   const launchAttempt = settings.runtime?.lastLaunchAttempt ?? null;
   const bootstrapAttempt = settings.runtime?.lastBootstrapAttempt ?? null;
+  const desktopHealth = buildDesktopHealthSummary({
+    bridgeStatus: {
+      available: true,
+      complete: true,
+      missingMethods: [],
+      presentMethodCount: 0,
+      totalMethodCount: 0,
+      summary: "Runtime export does not inspect renderer bridge",
+      detail: "Support bundle focuses on build metadata, proxy state, and Kiro readiness from the desktop runtime.",
+      tone: "success"
+    },
+    appMeta: null,
+    proxyStatus,
+    kiroDetection
+  });
   return [
     "Kiro++ diagnostics summary",
     `BYOK: ${settings.isByokEnabled ? "enabled" : "disabled"}`,
@@ -203,8 +219,9 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
     `Readiness issues: ${readinessIssues.length}`,
     `Primary issue: ${primaryIssue ? `${primaryIssue.title} -> ${primaryIssue.action}` : "-"}`,
     ...readinessIssues.map((issue, index) => `Issue ${index + 1}: [${issue.severity}] ${issue.title} / ${issue.action}`),
+    formatDesktopHealthSummary(desktopHealth),
     failure
-      ? `Latest failure: ${failure.operation} / HTTP ${failure.status} / requestId ${failure.requestId ?? "-"}`
+      ? `Latest failure: ${failure.operation} / HTTP ${failure.status} / requestId ${failure.requestId ?? "-"}` 
       : "Latest failure: -"
   ].join("\n");
 }
@@ -778,6 +795,24 @@ export class DesktopRuntime {
     const sharedState = sanitizeStateForShare(state);
     const text = formatDiagnosticsSummary(sharedState);
     const fileText = [text, "", formatRecentRequestSnapshot(state.recentLogs)].join("\n");
+    const desktopHealth = buildDesktopHealthSummary({
+      bridgeStatus: {
+        available: true,
+        complete: true,
+        missingMethods: [],
+        presentMethodCount: 0,
+        totalMethodCount: 0,
+        summary: "Runtime export does not inspect renderer bridge",
+        detail: "Support bundle focuses on build metadata, proxy state, and Kiro readiness from the desktop runtime.",
+        tone: "success"
+      },
+      appMeta: null,
+      proxyStatus: sharedState.proxyStatus,
+      kiroDetection: {
+        installed: sharedState.kiroDetection.installed,
+        detectionHint: sharedState.kiroDetection.detectionHint
+      }
+    });
     const exportedAt = this.now().toISOString();
     const stamp = exportedAt.replace(/[:.]/g, "-");
     const bundleName = `kiro-plus-plus-diagnostics-${stamp}`;
@@ -793,6 +828,7 @@ export class DesktopRuntime {
     await writeFile(jsonPath, `${JSON.stringify({
       exportedAt,
       summary: text,
+      desktopHealth,
       proxyStatus: sharedState.proxyStatus,
       kiroDetection: sharedState.kiroDetection,
       diagnose: sharedState.diagnose,
@@ -803,6 +839,11 @@ export class DesktopRuntime {
     await writeFile(manifestPath, `${JSON.stringify({
       exportedAt,
       bundleName,
+      desktopHealth: {
+        severity: desktopHealth.severity,
+        summary: desktopHealth.summary,
+        itemCount: desktopHealth.items.length
+      },
       files: {
         readme: "README.txt",
         summary: "summary.txt",
