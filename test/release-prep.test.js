@@ -4,7 +4,11 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { buildReleasePrepReport, formatReleasePrepReport } from "../scripts/release-prep.mjs";
+import {
+  buildReleasePrepReport,
+  formatReleasePrepMarkdown,
+  formatReleasePrepReport
+} from "../scripts/release-prep.mjs";
 
 test("buildReleasePrepReport summarizes release readiness and placeholders", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-"));
@@ -220,6 +224,52 @@ test("buildReleasePrepReport flags dirty git status as a next action", async () 
     const text = formatReleasePrepReport(report);
     assert.match(text, /git: dirty/);
     assert.match(text, /M README\.md/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("formatReleasePrepMarkdown outputs a copyable release summary", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-markdown-"));
+
+  try {
+    await mkdir(join(workspace, "docs", "release"), { recursive: true });
+    await mkdir(join(workspace, "release"), { recursive: true });
+
+    await writeFile(join(workspace, "package.json"), JSON.stringify({
+      name: "kiro-plus-plus",
+      version: "0.1.0"
+    }, null, 2));
+    await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(
+      join(workspace, "docs", "release", "linuxdo-post.md"),
+      [
+        "# post",
+        "GitHub 仓库：`https://github.com/hudengfenglai/kiro-plus-plus`",
+        "Release 下载：`<RELEASE_DOWNLOAD_URL>`"
+      ].join("\n")
+    );
+    await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
+    await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
+
+    const report = await buildReleasePrepReport({
+      rootDir: workspace,
+      getGitStatus: async () => ({
+        clean: true,
+        summary: ""
+      })
+    });
+
+    const markdown = formatReleasePrepMarkdown(report);
+
+    assert.match(markdown, /^# Kiro\+\+ 0\.1\.0 Release Prep/m);
+    assert.match(markdown, /- Repo: https:\/\/github\.com\/hudengfenglai\/kiro-plus-plus/);
+    assert.match(markdown, /- Git status: clean/);
+    assert.match(markdown, /- Artifact: `release\/kiro-plus-plus-0\.1\.0-x64\.exe`/);
+    assert.match(markdown, /## Pending Replacements/);
+    assert.match(markdown, /<RELEASE_DOWNLOAD_URL>/);
+    assert.match(markdown, /## Next Actions/);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

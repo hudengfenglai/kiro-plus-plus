@@ -176,6 +176,32 @@ export function formatReleasePrepReport(report) {
   return lines.join("\n");
 }
 
+export function formatReleasePrepMarkdown(report) {
+  const lines = [
+    `# Kiro++ ${report.version} Release Prep`,
+    "",
+    "## Summary",
+    `- Repo: ${report.repoUrl ?? "(missing)"}`,
+    `- Git status: ${report.git.clean ? "clean" : `dirty (${report.git.summary})`}`,
+    `- Artifact: ${report.artifact.exists ? `\`${report.artifact.path}\`` : `missing (\`${report.artifact.path}\`)`}`,
+    `- Docs: README=${report.docs.readme.exists ? "yes" : "no"}, linuxdo=${report.docs.linuxdoPost.exists ? "yes" : "no"}, verification=${report.docs.releaseVerification.exists ? "yes" : "no"}, smoke=${report.docs.smokeChecklist.exists ? "yes" : "no"}`
+  ];
+
+  if (report.placeholders.length > 0) {
+    lines.push("", "## Pending Replacements");
+    for (const item of report.placeholders) {
+      lines.push(`- ${item.file}: \`${item.placeholder}\``);
+    }
+  }
+
+  lines.push("", "## Next Actions");
+  for (const item of report.nextActions) {
+    lines.push(`- ${item}`);
+  }
+
+  return lines.join("\n");
+}
+
 const currentFilePath = fileURLToPath(import.meta.url);
 const entryPath = process.argv[1];
 
