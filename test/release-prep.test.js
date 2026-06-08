@@ -31,7 +31,13 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
-    const report = await buildReleasePrepReport({ rootDir: workspace });
+    const report = await buildReleasePrepReport({
+      rootDir: workspace,
+      getGitStatus: async () => ({
+        clean: true,
+        summary: ""
+      })
+    });
 
     assert.equal(report.version, "0.1.0");
     assert.equal(report.repoUrl, "https://github.com/hudengfenglai/kiro-plus-plus");
@@ -88,7 +94,13 @@ test("buildReleasePrepReport de-duplicates repeated publish placeholders", async
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
-    const report = await buildReleasePrepReport({ rootDir: workspace });
+    const report = await buildReleasePrepReport({
+      rootDir: workspace,
+      getGitStatus: async () => ({
+        clean: true,
+        summary: ""
+      })
+    });
 
     assert.deepEqual(report.placeholders, [
       {
@@ -118,7 +130,13 @@ test("buildReleasePrepReport reports missing artifacts and docs", async () => {
       "# post\nGitHub 仓库：`https://github.com/hudengfenglai/kiro-plus-plus`\n"
     );
 
-    const report = await buildReleasePrepReport({ rootDir: workspace });
+    const report = await buildReleasePrepReport({
+      rootDir: workspace,
+      getGitStatus: async () => ({
+        clean: true,
+        summary: ""
+      })
+    });
 
     assert.equal(report.artifact.exists, false);
     assert.equal(report.docs.readme.exists, false);
@@ -130,6 +148,78 @@ test("buildReleasePrepReport reports missing artifacts and docs", async () => {
       "补齐 README、release-verification 和 smoke-checklist 文档。",
       "按 docs/release/smoke-checklist.md 完成真实烟测与截图采集。"
     ]);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("buildReleasePrepReport includes clean git status", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-git-clean-"));
+
+  try {
+    await mkdir(join(workspace, "docs", "release"), { recursive: true });
+    await mkdir(join(workspace, "release"), { recursive: true });
+
+    await writeFile(join(workspace, "package.json"), JSON.stringify({
+      name: "kiro-plus-plus",
+      version: "0.1.0"
+    }, null, 2));
+    await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "release", "linuxdo-post.md"), "# post\n");
+    await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
+    await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
+
+    const report = await buildReleasePrepReport({
+      rootDir: workspace,
+      getGitStatus: async () => ({
+        clean: true,
+        summary: ""
+      })
+    });
+
+    assert.equal(report.git.clean, true);
+    assert.equal(report.git.summary, "");
+
+    const text = formatReleasePrepReport(report);
+    assert.match(text, /git: clean/);
+  } finally {
+    await rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test("buildReleasePrepReport flags dirty git status as a next action", async () => {
+  const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-git-dirty-"));
+
+  try {
+    await mkdir(join(workspace, "docs", "release"), { recursive: true });
+    await mkdir(join(workspace, "release"), { recursive: true });
+
+    await writeFile(join(workspace, "package.json"), JSON.stringify({
+      name: "kiro-plus-plus",
+      version: "0.1.0"
+    }, null, 2));
+    await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "release", "linuxdo-post.md"), "# post\n");
+    await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
+    await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
+
+    const report = await buildReleasePrepReport({
+      rootDir: workspace,
+      getGitStatus: async () => ({
+        clean: false,
+        summary: "M README.md"
+      })
+    });
+
+    assert.equal(report.git.clean, false);
+    assert.equal(report.git.summary, "M README.md");
+    assert.match(report.nextActions[0], /先整理未提交改动/);
+
+    const text = formatReleasePrepReport(report);
+    assert.match(text, /git: dirty/);
+    assert.match(text, /M README\.md/);
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }

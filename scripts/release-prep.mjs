@@ -1,7 +1,11 @@
 import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { join, relative } from "node:path";
+import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 async function exists(path) {
   try {
@@ -49,8 +53,25 @@ function findPlaceholders(file, text) {
   });
 }
 
+async function defaultGetGitStatus(rootDir) {
+  try {
+    const { stdout } = await execFileAsync("git", ["status", "--short"], { cwd: rootDir });
+    const summary = stdout.trim();
+    return {
+      clean: summary.length === 0,
+      summary
+    };
+  } catch (error) {
+    return {
+      clean: false,
+      summary: `git status unavailable: ${error instanceof Error ? error.message : String(error)}`
+    };
+  }
+}
+
 export async function buildReleasePrepReport({
-  rootDir = process.cwd()
+  rootDir = process.cwd(),
+  getGitStatus = defaultGetGitStatus
 } = {}) {
   const packagePath = join(rootDir, "package.json");
   const readmePath = join(rootDir, "README.md");
@@ -101,6 +122,12 @@ export async function buildReleasePrepReport({
     nextActions.push("先运行 npm run desktop:package 生成安装包。");
   }
 
+  const git = await getGitStatus(rootDir);
+
+  if (!git.clean) {
+    nextActions.unshift("先整理未提交改动，确保发布前工作区干净。");
+  }
+
   if (!docs.readme.exists || !docs.releaseVerification.exists || !docs.smokeChecklist.exists) {
     nextActions.push("补齐 README、release-verification 和 smoke-checklist 文档。");
   }
@@ -115,6 +142,7 @@ export async function buildReleasePrepReport({
     rootDir,
     version,
     repoUrl,
+    git,
     artifact,
     docs,
     placeholders,
@@ -127,6 +155,7 @@ export function formatReleasePrepReport(report) {
     "Kiro++ release prep",
     `version: ${report.version}`,
     `repo: ${report.repoUrl ?? "(missing)"}`,
+    `git: ${report.git.clean ? "clean" : "dirty"}${report.git.summary ? ` (${report.git.summary})` : ""}`,
     `artifact: ${report.artifact.exists ? "present" : "missing"} (${report.artifact.path})`,
     `docs: README=${report.docs.readme.exists ? "yes" : "no"}, linuxdo=${report.docs.linuxdoPost.exists ? "yes" : "no"}, verification=${report.docs.releaseVerification.exists ? "yes" : "no"}, smoke=${report.docs.smokeChecklist.exists ? "yes" : "no"}`,
     `linuxdo post placeholders: ${report.placeholders.length}`
