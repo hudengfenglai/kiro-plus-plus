@@ -2,10 +2,7 @@ import type { DesktopBridgeStatus } from "../../../shared/bridge-status";
 import type { DesktopHealthSummary, DesktopHealthItem } from "../../../shared/desktop-health";
 import type { QuickstartItem, QuickstartSummary } from "../../../shared/quickstart";
 import type { AppMeta, AppState } from "../../../shared/types";
-
-type ResourceKey = "quickstart" | "readme" | "providers" | "streaming" | "plan";
-type ConsoleFocus = "status" | "providers" | "kiro" | "logs" | "playground";
-type ThemeKey = "dark" | "light";
+import type { ConsoleFocus, ResourceKey, ThemeKey } from "../app-types";
 
 type ProviderOption = {
   id: string;

@@ -132,6 +132,11 @@ Recent Progress:
 - Extracted the console header into a dedicated renderer component so the workbench top bar and historical support-bundle banner now live outside `App.tsx`, leaving the root view closer to a pure page assembler.
 - Extracted the middle-column status overview cards into a dedicated renderer component so the live environment summary and Kiro routing summary no longer remain embedded in `App.tsx`.
 - Moved renderer-only helper functions such as time formatting, focus recommendation, log summarization, and model text parsing into `desktop/renderer/src/app-utils.ts`, keeping `App.tsx` focused on state wiring and page assembly.
+- Moved diagnostics/support-bundle/workbench-snapshot action orchestration into `desktop/renderer/src/app-diagnostics-actions.ts`, so `App.tsx` now delegates export/copy/open/history flows through a dedicated renderer-local action module instead of keeping that logic inline.
+- Moved provider-draft switching, preset application, provider save/fetch/test, and playground send flows into `desktop/renderer/src/app-provider-actions.ts`, further narrowing `App.tsx` toward state wiring plus high-level workbench sequencing.
+- Moved shell-level workbench actions such as `openConsole`, readiness handling, desktop-health handling, log refresh, doc opening, and auto-apply toggling into `desktop/renderer/src/app-workbench-actions.ts`, leaving `App.tsx` with fewer UI-agnostic control flows.
+- Moved quickstart/setup/launch/history flow sequencing into `desktop/renderer/src/app-flow-actions.ts`, so `App.tsx` now delegates almost all cross-panel orchestration and is much closer to a pure state-and-view composition layer.
+- Centralized renderer-local shared unions and action helper types into `desktop/renderer/src/app-types.ts`, then reconnected `App.tsx`, action modules, and selected components to reduce duplicated local type drift.
 
 Verification:
 - `npm test` passes with 125 tests.

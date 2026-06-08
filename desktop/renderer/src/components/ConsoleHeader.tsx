@@ -1,8 +1,7 @@
 import type { DesktopBridgeStatus } from "../../../shared/bridge-status";
 import type { QuickstartSummary } from "../../../shared/quickstart";
 import type { AppMeta, DiagnosticsExportBundle } from "../../../shared/types";
-
-type ViewKey = "home" | "console";
+import type { ViewKey } from "../app-types";
 
 type ExportSummary = {
   bundleName: string;
