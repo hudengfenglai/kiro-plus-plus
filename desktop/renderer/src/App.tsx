@@ -675,6 +675,38 @@ export function App() {
     }
   }
 
+  async function handleDesktopHealthAction(item: {
+    actionKind: "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy";
+    focus: ConsoleFocus;
+  }) {
+    switch (item.actionKind) {
+      case "open-quickstart":
+        return runAction(
+          () => requireDesktopApi().openResource("quickstart"),
+          {
+            pending: "正在打开 Quickstart...",
+            success: "Quickstart 已打开。",
+            afterFocus: "status"
+          }
+        );
+      case "open-logs":
+        openConsole("logs");
+        return Promise.resolve();
+      case "open-kiro":
+        openConsole("kiro");
+        return Promise.resolve();
+      case "start-proxy":
+        return runAction(() => requireDesktopApi().startProxy(), {
+          pending: "正在启动本地代理...",
+          success: "代理已启动。",
+          afterFocus: "kiro"
+        });
+      default:
+        openConsole(item.focus);
+        return Promise.resolve();
+    }
+  }
+
   async function refreshLogs(nextFilters = logFilters) {
     try {
       const rows = await requireDesktopApi().listLogs({
@@ -1199,7 +1231,12 @@ export function App() {
                   <p className="health-item ok">当前桌面环境没有明显阻塞项。</p>
                 ) : (
                   desktopHealth.items.slice(0, 3).map((item) => (
-                    <p key={item.key} className={`health-item ${item.severity}`}>{item.title}</p>
+                    <div key={item.key} className={`health-action ${item.severity}`}>
+                      <p className={`health-item ${item.severity}`}>{item.title}</p>
+                      <button className="ghost-button compact-button" onClick={() => handleDesktopHealthAction(item)}>
+                        {item.actionLabel}
+                      </button>
+                    </div>
                   ))
                 )}
               </div>

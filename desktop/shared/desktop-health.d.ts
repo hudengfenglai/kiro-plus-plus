@@ -6,6 +6,9 @@ export type DesktopHealthItem = {
   severity: "error" | "warning" | "info";
   title: string;
   detail: string;
+  actionLabel: string;
+  actionKind: "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy";
+  focus: "status" | "providers" | "kiro" | "logs" | "playground";
 };
 
 export type DesktopHealthSummary = {

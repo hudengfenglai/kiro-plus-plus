@@ -759,8 +759,8 @@ test("buildDesktopHealthSummary prioritizes bridge and build problems for outdat
   });
 
   assert.equal(summary.severity, "warning");
-  assert.ok(summary.items.some((item) => item.key === "bridge-outdated"));
-  assert.ok(summary.items.some((item) => item.key === "build-meta-missing"));
-  assert.ok(summary.items.some((item) => item.key === "proxy-not-running"));
-  assert.ok(summary.items.some((item) => item.key === "kiro-not-detected"));
+  assert.ok(summary.items.some((item) => item.key === "bridge-outdated" && item.actionKind === "open-quickstart"));
+  assert.ok(summary.items.some((item) => item.key === "build-meta-missing" && item.actionKind === "open-quickstart"));
+  assert.ok(summary.items.some((item) => item.key === "proxy-not-running" && item.actionKind === "start-proxy"));
+  assert.ok(summary.items.some((item) => item.key === "kiro-not-detected" && item.actionKind === "open-kiro"));
 });
