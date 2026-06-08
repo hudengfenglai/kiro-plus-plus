@@ -124,6 +124,14 @@ Recent Progress:
 - Localized more release-facing renderer copy by converting share/export text blocks and home status cards away from leftover English labels like `Build`, `Health`, `Endpoint`, `Mode`, and `Logs source`, so copied diagnostics now read more naturally for Chinese-first users.
 - Extracted the center diagnostics artifacts area into a dedicated renderer component, reducing `App.tsx` size without changing IPC or diagnostics behavior.
 - Extracted the right-hand validation rail into its own renderer component and aligned its quickstart typing with the shared `QuickstartItem` contract, keeping the three-column workbench wiring stable while further reducing `App.tsx` complexity.
+- Extracted the entire left control rail into a dedicated renderer component so Provider configuration and Kiro routing controls now live behind a clearer UI boundary while keeping all current actions, blocker hints, and setup-mode behavior unchanged.
+- Extracted the lower workspace surface into a dedicated renderer component so launch/bootstrap status, readiness actions, and the logs/output/diagnostics tabbed workbench now sit behind a cleaner middle-column boundary without changing runtime behavior.
+- Extracted the full onboarding home view into a dedicated renderer component so the landing page, hero diagnostics cards, provider presets, and document entry points now have a focused surface separate from the console workbench while preserving all current CTA behavior.
+- Extracted the workspace hero into a dedicated renderer component so the middle-column progress banner, readiness callout, and KPI cards now live behind their own surface instead of remaining embedded in `App.tsx`.
+- Extracted the setup / quickstart middle-column workspace into its own renderer component so first-run setup mode and the post-setup quickstart strip now share one dedicated surface instead of being inlined inside `App.tsx`.
+- Extracted the console header into a dedicated renderer component so the workbench top bar and historical support-bundle banner now live outside `App.tsx`, leaving the root view closer to a pure page assembler.
+- Extracted the middle-column status overview cards into a dedicated renderer component so the live environment summary and Kiro routing summary no longer remain embedded in `App.tsx`.
+- Moved renderer-only helper functions such as time formatting, focus recommendation, log summarization, and model text parsing into `desktop/renderer/src/app-utils.ts`, keeping `App.tsx` focused on state wiring and page assembly.
 
 Verification:
 - `npm test` passes with 125 tests.

@@ -28,8 +28,31 @@ import {
   buildWorkbenchShareText
 } from "../../shared/workbench-share";
 import { describeWorkbenchSnapshotAvailability } from "../../shared/workbench-snapshot-status";
+import {
+  basename,
+  buildModelsText,
+  collectUnavailableReasons,
+  deriveFocusMeta,
+  describeBootstrapStatus,
+  describeBootstrapStep,
+  describeError,
+  describeLaunchStatus,
+  describeLaunchStep,
+  formatTime,
+  nowIso,
+  parseModelsText,
+  pickRecommendedFocus,
+  summarizeLog
+} from "./app-utils";
+import { ControlRail } from "./components/ControlRail";
+import { ConsoleHeader } from "./components/ConsoleHeader";
 import { DiagnosticsArtifactsPanel } from "./components/DiagnosticsArtifactsPanel";
+import { HomeView } from "./components/HomeView";
+import { SetupWorkspace } from "./components/SetupWorkspace";
+import { StatusOverviewPanel } from "./components/StatusOverviewPanel";
 import { ValidationRail } from "./components/ValidationRail";
+import { WorkbenchPanel } from "./components/WorkbenchPanel";
+import { WorkspaceHero } from "./components/WorkspaceHero";
 import type {
   AppMeta,
   AppState,
@@ -162,19 +185,6 @@ const resourceLinks: Array<{ key: ResourceKey; title: string; body: string }> = 
   }
 ];
 
-function describeError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      summary: error.message,
-      detail: error.stack ?? error.message
-    };
-  }
-  return {
-    summary: String(error),
-    detail: String(error)
-  };
-}
-
 function requireDesktopApi() {
   if (window.kiroPlusApp) {
     return new Proxy(window.kiroPlusApp, {
@@ -191,10 +201,6 @@ function requireDesktopApi() {
     });
   }
   throw new Error("桌面桥接不可用。请安装最新版 Kiro++ 后重新启动应用。");
-}
-
-function nowIso() {
-  return new Date().toISOString();
 }
 
 async function writeClipboardText(text: string) {
@@ -218,200 +224,6 @@ function makeActionEntry(title: string, detail: string, tone: ActionEntry["tone"
     tone,
     at: nowIso()
   };
-}
-
-function formatTime(value?: null | string) {
-  if (!value) return "暂无";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("zh-CN", {
-    hour12: false,
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-function basename(value?: null | string) {
-  if (!value) return "暂无";
-  const parts = value.split(/[\\/]/).filter(Boolean);
-  return parts.at(-1) ?? value;
-}
-
-function describeLaunchStep(step?: null | string) {
-  switch (step) {
-    case "detect-kiro":
-      return "检测 Kiro";
-    case "start-proxy":
-      return "启动代理";
-    case "apply-routing":
-      return "应用路由";
-    case "launch-kiro":
-      return "拉起 Kiro";
-    default:
-      return step ?? "暂无";
-  }
-}
-
-function describeLaunchStatus(attempt: LaunchAttempt | null) {
-  if (!attempt) {
-    return {
-      title: "尚未通过 Kiro++ 启动 Kiro",
-      tone: "info" as const
-    };
-  }
-  if (attempt.status === "success") {
-    return {
-      title: "最近一次启动成功",
-      tone: "success" as const
-    };
-  }
-  if (attempt.status === "error") {
-    return {
-      title: "最近一次启动失败",
-      tone: "error" as const
-    };
-  }
-  return {
-    title: "最近一次启动进行中",
-    tone: "info" as const
-  };
-}
-
-function describeBootstrapStep(step?: null | string) {
-  switch (step) {
-    case "bootstrap-disabled":
-      return "未启用预热";
-    case "bootstrap-start":
-      return "开始预热";
-    case "apply-routing":
-      return "应用路由";
-    case "bootstrap-ready":
-      return "已就绪";
-    case "bootstrap-failed":
-      return "预热失败";
-    default:
-      return step ?? "暂无";
-  }
-}
-
-function describeBootstrapStatus(attempt: LaunchAttempt | null) {
-  if (!attempt) {
-    return {
-      title: "暂无启动预热记录",
-      tone: "info" as const
-    };
-  }
-  if (attempt.status === "success") {
-    return {
-      title: "最近一次启动预热成功",
-      tone: "success" as const
-    };
-  }
-  if (attempt.status === "error") {
-    return {
-      title: "最近一次启动预热失败",
-      tone: "error" as const
-    };
-  }
-  if (attempt.status === "skipped") {
-    return {
-      title: "最近一次启动预热已跳过",
-      tone: "info" as const
-    };
-  }
-  return {
-    title: "最近一次启动预热进行中",
-    tone: "info" as const
-  };
-}
-
-function summarizeLog(entry: DiagnosticsLogSnapshot | RequestLogEntry | null) {
-  if (!entry) {
-    return {
-      title: "暂无记录",
-      body: "还没有可展示的请求。"
-    };
-  }
-
-  return {
-    title: `${entry.operation || "未知操作"} / ${entry.status}`,
-    body: `requestId ${entry.requestId ?? "-"} · ${formatTime(entry.at)}`
-  };
-}
-
-function collectUnavailableReasons(actions: Record<string, { enabled: boolean; reason: string | null }>) {
-  return Array.from(
-    new Set(
-      Object.values(actions)
-        .filter((item) => !item.enabled && item.reason)
-        .map((item) => item.reason as string)
-    )
-  );
-}
-
-function buildModelsText(models: ProviderModel[]) {
-  return models.map((model) => model.id).join("\n");
-}
-
-function parseModelsText(text: string, previous: ProviderModel[]) {
-  const previousMap = new Map(previous.map((model) => [model.id, model]));
-  const modelIds = text
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  return modelIds.map((modelId) => {
-    const existing = previousMap.get(modelId);
-    if (existing) return existing;
-    return {
-      id: modelId,
-      name: modelId,
-      description: "BYOK routed model",
-      note: ""
-    };
-  });
-}
-
-function deriveFocusMeta(focus: ConsoleFocus) {
-  switch (focus) {
-    case "providers":
-      return {
-        status: "先把 Provider 存好，再测试一次最小请求。",
-        workbench: "output" as WorkbenchTab
-      };
-    case "kiro":
-      return {
-        status: "先确认代理运行，再应用 BYOK 和诊断。",
-        workbench: "diagnostics" as WorkbenchTab
-      };
-    case "logs":
-      return {
-        status: "先看失败请求，再复制诊断摘要。",
-        workbench: "logs" as WorkbenchTab
-      };
-    case "playground":
-      return {
-        status: "右栏会直接给你一条真实模型验证结果。",
-        workbench: "output" as WorkbenchTab
-      };
-    default:
-      return {
-        status: "从左侧配置开始，按步骤推进到 Kiro 验证。",
-        workbench: "output" as WorkbenchTab
-      };
-  }
-}
-
-function pickRecommendedFocus(state: AppState): ConsoleFocus {
-  const recommendation = state.bootstrap.recommendedTab;
-  if (recommendation === "status") return "status";
-  if (recommendation === "providers") return "providers";
-  if (recommendation === "kiro") return "kiro";
-  if (recommendation === "logs") return "logs";
-  if (recommendation === "playground") return "playground";
-  return "status";
 }
 
 export function App() {
@@ -1642,1024 +1454,230 @@ export function App() {
   }
 
   const home = (
-    <div className="landing-shell">
-      <header className="landing-header">
-        <div className="brand-line">
-          <div className="brand-mark">K+</div>
-          <div>
-            <strong>Kiro++</strong>
-            <span>
-              本地 BYOK 路由与桌面工作台
-              {appMeta ? ` · v${appMeta.version} · ${appMeta.buildLabel}` : " · 版本未知"}
-            </span>
-          </div>
-        </div>
-        <div className="hero-top-actions">
-          <button className="ghost-button" onClick={toggleTheme}>
-            {theme === "dark" ? "切换浅色" : "切换深色"}
-          </button>
-          <button className="ghost-button" onClick={() => openConsole(pickRecommendedFocus(state))}>快速开始</button>
-          <button onClick={() => openConsole("status")}>打开工作台</button>
-        </div>
-      </header>
-
-      <main className="landing-main">
-        <section className="landing-hero">
-          <div className="hero-copy">
-            <span className="eyebrow">Windows 优先 / 本地透明 / 多 Provider 路由</span>
-            <h1>让 Kiro 使用你自己的 API 与模型</h1>
-            <p>
-              不改 Kiro 安装目录，只在本地启动代理、写入可恢复配置，并把 DeepSeek、DashScope、
-              Moonshot、Zhipu、SiliconFlow 等 Provider 接到 Kiro。
-            </p>
-            <div className="hero-actions">
-              <button onClick={() => openConsole(pickRecommendedFocus(state))}>快速开始</button>
-              <button className="ghost-button" onClick={() => openResource("quickstart")}>打开快速开始</button>
-              <button className="ghost-button" onClick={() => openConsole("providers")}>查看 Provider 配置</button>
-              <button className="ghost-button" onClick={() => openConsole("logs")}>查看排错入口</button>
-            </div>
-            <div className="setup-progress-card">
-              <div className="setup-progress-head">
-                <strong>接入进度</strong>
-                <span>{quickstartSummary.completedCount}/{quickstartSummary.totalCount}</span>
-              </div>
-              <div className="setup-progress-bar" aria-hidden="true">
-                <div className="setup-progress-fill" style={{ width: `${quickstartSummary.percent}%` }} />
-              </div>
-              <p>{quickstartSummary.nextLabel}</p>
-              <div className="button-stack">
-                <button onClick={() => quickstartSummary.nextItem ? handleQuickstartAction(quickstartSummary.nextItem) : openConsole("playground")}>
-                  {quickstartSummary.nextItem?.actionLabel ?? "去做验证"}
-                </button>
-                <button className="ghost-button" onClick={() => openConsole(quickstartSummary.nextItem?.focus ?? "status")}>
-                  继续设置
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-side">
-            <div className="hero-side-stack">
-            <div className="hero-side-card">
-              <span className={`state-pill ${state.proxyStatus.state}`}>{proxyStateLabels[state.proxyStatus.state]}</span>
-              <h3>当前接入状态</h3>
-              <dl className="kv-grid compact">
-                <div><dt>BYOK</dt><dd>{state.settings.isByokEnabled ? "已启用" : "未启用"}</dd></div>
-                <div><dt>Provider</dt><dd>{selectedProviderLabel}</dd></div>
-                <div><dt>默认模型</dt><dd>{selectedProvider?.defaultModel ?? "未配置"}</dd></div>
-                <div><dt>本地地址</dt><dd>{state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
-              </dl>
-            </div>
-            <div className={`hero-side-card bridge-card ${bridgeStatus.tone}`}>
-              <span className="panel-tag">桥接</span>
-              <h3>{bridgeStatus.summary}</h3>
-              <p>{bridgeStatus.detail}</p>
-              <dl className="kv-grid compact">
-                <div><dt>可用方法</dt><dd>{bridgeStatus.presentMethodCount}/{bridgeStatus.totalMethodCount}</dd></div>
-                <div><dt>状态</dt><dd>{bridgeStatus.complete ? "完整" : bridgeStatus.available ? "需更新安装包" : "桥接缺失"}</dd></div>
-              </dl>
-            </div>
-            <div className="hero-side-card">
-              <span className="panel-tag">版本</span>
-              <h3>{appMeta ? `v${appMeta.version}` : "版本未知"}</h3>
-              <p>{appMeta ? `当前运行于${appMeta.buildLabel}。` : "当前安装包还没有暴露版本元数据，建议重新安装最新版 Kiro++ Console。"}</p>
-              <dl className="kv-grid compact">
-                <div><dt>来源</dt><dd>{appMeta?.buildLabel ?? "未知"}</dd></div>
-                <div><dt>环境</dt><dd>{appMeta?.source === "packaged" ? "安装版" : appMeta?.source === "development" ? "开发版" : "未知"}</dd></div>
-              </dl>
-            </div>
-            <div className={`hero-side-card health-card ${desktopHealth.severity}`}>
-              <span className="panel-tag">健康度</span>
-              <h3>{desktopHealth.summary}</h3>
-              <p>{desktopHealth.detail}</p>
-              <div className="health-list">
-                {desktopHealth.items.length === 0 ? (
-                  <p className="health-item ok">当前桌面环境没有明显阻塞项。</p>
-                ) : (
-                  desktopHealth.items.slice(0, 3).map((item) => (
-                    <div key={item.key} className={`health-action ${item.severity}`}>
-                      <p className={`health-item ${item.severity}`}>{item.title}</p>
-                      <button className="ghost-button compact-button" onClick={() => handleDesktopHealthAction(item)}>
-                        {item.actionLabel}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-            <div className="hero-side-card quickstart-card">
-              <span className="panel-tag">快速开始</span>
-              <h3>最短上手</h3>
-              <ol className="quickstart-list dynamic">
-                {quickstartChecklist.map((item, index) => (
-                  <li key={item.id} className={`quickstart-item ${item.done ? "done" : ""} ${item.current ? "current" : ""}`}>
-                    <div className="quickstart-item-head">
-                      <span className="quickstart-item-index">{String(index + 1).padStart(2, "0")}</span>
-                      <div>
-                        <strong>{item.title}</strong>
-                        <p>{item.detail}</p>
-                      </div>
-                    </div>
-                    <button className="ghost-button compact-button" onClick={() => handleQuickstartAction(item)}>
-                      {item.actionLabel}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-              <div className="button-stack">
-                <button className="ghost-button" onClick={() => openResource("quickstart")}>打开完整指南</button>
-                <button className="ghost-button" onClick={() => openConsole("providers")}>去配置 Provider</button>
-              </div>
-            </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="section-block">
-          <div className="section-head">
-            <div>
-              <h2>接入步骤</h2>
-              <p>这里和工作台使用同一套真实状态，不再保留单独的静态说明。</p>
-            </div>
-          </div>
-          <div className="home-card-grid steps">
-            {quickstartChecklist.map((item, index) => (
-              <article key={item.id} className={`home-card ${item.done ? "done-card" : ""} ${item.current ? "current-card" : ""}`}>
-                <span className="step-index">{String(index + 1).padStart(2, "0")}</span>
-                <h3>{item.title}</h3>
-                <p>{item.detail}</p>
-                <button className="ghost-button" onClick={() => handleQuickstartAction(item)}>{item.actionLabel}</button>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="section-block">
-          <div className="section-head">
-            <div>
-              <h2>常用预设</h2>
-              <p>只保留高频 Provider，避免在首版工作台里堆满低频字段。</p>
-            </div>
-          </div>
-          <div className="home-card-grid presets">
-            {providerOptions.map((provider) => (
-              <article key={provider.id} className="home-card provider-card">
-                <h3>{provider.label}</h3>
-                <p>{provider.baseUrl}</p>
-                <strong>{provider.defaultModel}</strong>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="section-block">
-          <div className="section-head">
-            <div>
-              <h2>文档入口</h2>
-              <p>这里都指向项目里的真实资源，不再放占位链接。</p>
-            </div>
-          </div>
-          <div className="home-card-grid docs">
-            {resourceLinks.map((item) => (
-              <button key={item.key} className="home-card home-link-card" onClick={() => openResource(item.key)}>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </button>
-            ))}
-          </div>
-        </section>
-      </main>
-    </div>
+    <HomeView
+      appMeta={appMeta}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      openConsole={openConsole}
+      recommendedFocus={pickRecommendedFocus(state)}
+      openResource={openResource}
+      quickstartSummary={quickstartSummary}
+      handleQuickstartAction={handleQuickstartAction}
+      proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
+      proxyStateClass={state.proxyStatus.state}
+      isByokEnabled={state.settings.isByokEnabled}
+      selectedProviderLabel={selectedProviderLabel}
+      selectedDefaultModel={selectedProvider?.defaultModel ?? "未配置"}
+      proxyEndpoint={state.proxyStatus.endpoint ?? `http://127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}
+      bridgeStatus={bridgeStatus}
+      desktopHealth={desktopHealth}
+      handleDesktopHealthAction={handleDesktopHealthAction}
+      quickstartChecklist={quickstartChecklist}
+      providerOptions={providerOptions}
+      resourceLinks={resourceLinks}
+    />
   );
 
   const consoleView = (
     <div className="workbench-shell">
-      <header className="workbench-topbar">
-        <div className="brand-line">
-          <div className="brand-mark">K+</div>
-          <div>
-            <strong>Kiro++ 工作台</strong>
-            <span>{status}{appMeta ? ` · v${appMeta.version} · ${appMeta.buildLabel}` : ""}</span>
-          </div>
-        </div>
-        <div className="topbar-actions">
-          <div className={`topbar-mode-pill ${quickstartSummary.isComplete ? "ready" : "setup"}`}>
-            <span>{quickstartSummary.modeLabel}</span>
-            <strong>{quickstartSummary.completedCount}/{quickstartSummary.totalCount}</strong>
-          </div>
-          <div className={`topbar-mode-pill bridge ${bridgeStatus.tone}`}>
-            <span>桥接</span>
-            <strong>{bridgeStatus.complete ? "完整" : "需更新"}</strong>
-          </div>
-          <button
-            className="ghost-button"
-            onClick={() => handlePrimaryWorkbenchAction()}
-          >
-            {primaryWorkbenchActionLabel}
-          </button>
-          <button className="ghost-button" onClick={toggleTheme}>
-            {theme === "dark" ? "浅色主题" : "深色主题"}
-          </button>
-          <button className="ghost-button" onClick={() => setView("home")}>返回首页</button>
-          <button onClick={() => handleLaunchEntry()}>
-            {launchWorkbenchActionLabel}
-          </button>
-        </div>
-      </header>
-
-      {viewingHistoricalBundle && lastExportBundle ? (
-        <section className="historical-banner">
-          <div className="historical-banner-copy">
-            <span className="snapshot-label">历史支持包</span>
-            <strong>当前正在查看历史支持快照</strong>
-            <p>
-              当前的诊断摘要、最近失败/成功记录和推荐动作来自
-              {" "}
-              <code>{exportSummary?.bundleName ?? basename(lastExportBundle.bundleDir)}</code>
-              {" "}
-              ，不是实时运行状态。
-            </p>
-            <small>导出时间：{formatTime(lastExportBundle.exportedAt ?? null)}</small>
-          </div>
-          <div className="historical-banner-actions">
-            <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
-              回到最新支持包
-            </button>
-            <button
-              className="ghost-button compact-button"
-              onClick={() => openExportArtifact(lastExportBundle.requestsPath ?? null, "请求文件")}
-            >
-              打开请求文件
-            </button>
-            <button className="ghost-button compact-button" onClick={copySupportSnapshot}>
-              复制支持快照
-            </button>
-          </div>
-        </section>
-      ) : null}
+      <ConsoleHeader
+        status={status}
+        appMeta={appMeta}
+        quickstartSummary={quickstartSummary}
+        bridgeStatus={bridgeStatus}
+        primaryWorkbenchActionLabel={primaryWorkbenchActionLabel}
+        launchWorkbenchActionLabel={launchWorkbenchActionLabel}
+        handlePrimaryWorkbenchAction={handlePrimaryWorkbenchAction}
+        toggleTheme={toggleTheme}
+        theme={theme}
+        setView={setView}
+        handleLaunchEntry={handleLaunchEntry}
+        viewingHistoricalBundle={viewingHistoricalBundle}
+        lastExportBundle={lastExportBundle}
+        exportSummary={exportSummary ? { bundleName: exportSummary.bundleName } : null}
+        basename={basename}
+        formatTime={formatTime}
+        selectLatestExportBundle={selectLatestExportBundle}
+        openExportArtifact={openExportArtifact}
+        copySupportSnapshot={copySupportSnapshot}
+      />
 
       <main className="workbench-grid">
-        <aside className={`rail left ${focus === "providers" || focus === "kiro" ? "focused" : ""}`}>
-          <section className="rail-panel">
-            <div className="rail-panel-head">
-              <div>
-                <span className="panel-tag">Provider</span>
-                <h2>配置与保存</h2>
-              </div>
-              <span className="tiny-meta">{selectedProviderModels.length} 个模型</span>
-            </div>
-
-            <label className="field">
-              <span>Provider 预设</span>
-              <div className="field-row">
-                <select value={presetId} onChange={(event) => setPresetId(event.target.value)}>
-                  {providerOptions.map((provider) => (
-                    <option key={provider.id} value={provider.id}>{provider.label}</option>
-                  ))}
-                </select>
-                <button className="ghost-button compact-button" onClick={applyPresetToDraft}>套用</button>
-              </div>
-            </label>
-
-            {selectedProvider ? (
-              <>
-                <label className="field">
-                  <span>当前 Provider</span>
-                  <select
-                    value={selectedProvider.id}
-                    onChange={(event) => {
-                      requestReplaceProviderDraft({
-                        kind: "switch-provider",
-                        providerId: event.target.value
-                      });
-                    }}
-                  >
-                    {state.settings.providers.map((provider) => (
-                      <option key={provider.id} value={provider.id}>{provider.label}</option>
-                    ))}
-                  </select>
-                </label>
-
-                <label className="field">
-                  <span>provider id</span>
-                  <input
-                    value={selectedProvider.id}
-                    onChange={(event) => updateProviderDraft({ ...selectedProvider, id: event.target.value })}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>label</span>
-                  <input
-                    value={selectedProvider.label}
-                    onChange={(event) => updateProviderDraft({ ...selectedProvider, label: event.target.value })}
-                  />
-                </label>
-
-                <div className="field-grid">
-                  <label className="field">
-                    <span>type</span>
-                    <select
-                      value={selectedProvider.type}
-                      onChange={(event) =>
-                        updateProviderDraft({ ...selectedProvider, type: event.target.value as ProviderProfile["type"] })
-                      }
-                    >
-                      <option value="openai-compatible">openai-compatible</option>
-                      <option value="anthropic">anthropic</option>
-                      <option value="gemini">gemini</option>
-                    </select>
-                  </label>
-
-                  <label className="field">
-                    <span>defaultModel</span>
-                    <select
-                      value={selectedProvider.defaultModel}
-                      onChange={(event) => updateProviderDraft({ ...selectedProvider, defaultModel: event.target.value })}
-                    >
-                      {selectedProviderModels.map((model) => (
-                        <option key={model.id} value={model.id}>{model.id}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <label className="field">
-                  <span>baseUrl</span>
-                  <input
-                    value={selectedProvider.baseUrl}
-                    onChange={(event) => updateProviderDraft({ ...selectedProvider, baseUrl: event.target.value })}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>apiKey</span>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    placeholder="留空则继续使用系统安全存储中的 Key"
-                    onChange={(event) => setApiKey(event.target.value)}
-                  />
-                </label>
-
-                <label className="field">
-                  <span>models[]</span>
-                  <textarea
-                    value={modelsText}
-                    onChange={(event) => setModelsText(event.target.value)}
-                    placeholder="每行一个 model id"
-                  />
-                </label>
-
-                <div className="model-chip-list">
-                  {selectedProviderModels.map((model) => (
-                    <span key={model.id} className={model.id === selectedProvider.defaultModel ? "model-chip active" : "model-chip"}>
-                      {model.id}
-                    </span>
-                  ))}
-                </div>
-
-                <div className={providerDraftStatus.hasUnsavedChanges ? "draft-status-banner warning" : "draft-status-banner success"}>
-                  <strong>{providerDraftStatus.title}</strong>
-                  <p>{providerDraftStatus.detail}</p>
-                </div>
-
-                <div className="button-stack">
-                  <button
-                    className="ghost-button"
-                    disabled={!providerActionAvailability.fetchModels.enabled}
-                    title={providerActionAvailability.fetchModels.reason ?? undefined}
-                    onClick={handleFetchModels}
-                  >
-                    拉取模型
-                  </button>
-                  <button
-                    className="ghost-button"
-                    disabled={!providerActionAvailability.testProvider.enabled}
-                    title={providerActionAvailability.testProvider.reason ?? undefined}
-                    onClick={handleTestProvider}
-                  >
-                    测试 Provider
-                  </button>
-                  <button onClick={handleSaveProvider}>保存配置</button>
-                </div>
-                {providerActionHints.length > 0 ? (
-                  <div className="action-hints">
-                    {providerActionHints.map((hint) => (
-                      <p key={hint}>{hint}</p>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="action-hints success">
-                    <p>当前 Provider 已满足最小连通性前置条件，可以直接拉取模型或做测试。</p>
-                  </div>
-                )}
-              </>
-            ) : null}
-          </section>
-
-          <section className="rail-panel">
-            <div className="rail-panel-head">
-              <div>
-                <span className="panel-tag">Kiro</span>
-                <h2>路由与恢复</h2>
-              </div>
-              <span className={`state-pill ${state.proxyStatus.state}`}>{proxyStateLabels[state.proxyStatus.state]}</span>
-            </div>
-
-            <dl className="kv-grid dense">
-              <div><dt>本地 endpoint</dt><dd>{state.proxyStatus.endpoint ?? `127.0.0.1:${state.settings.kiro.defaultEndpointPort}`}</dd></div>
-              <div><dt>Kiro 安装</dt><dd>{state.kiroDetection.installPath ?? "未检测到"}</dd></div>
-              <div><dt>探测提示</dt><dd>{state.kiroDetection.detectionHint}</dd></div>
-              <div><dt>最近备份</dt><dd>{state.kiroDetection.lastBackup?.backupPath ?? "暂无"}</dd></div>
-              <div><dt>开机预热</dt><dd>{state.settings.kiro.autoApplyOnLaunch ? "已启用" : "未启用"}</dd></div>
-            </dl>
-
-            <div className="button-stack">
-              <button
-                className="ghost-button"
-                onClick={handleToggleAutoApplyOnLaunch}
-              >
-                {state.settings.kiro.autoApplyOnLaunch ? "关闭启动时自动应用" : "启用启动时自动应用"}
-              </button>
-              <button
-                className={quickstartSummary.showSetupWorkspace ? "" : "ghost-button"}
-                disabled={!kiroActionAvailability.startProxy.enabled}
-                title={kiroActionAvailability.startProxy.reason ?? undefined}
-                onClick={() =>
-                  runAction(() => requireDesktopApi().startProxy(), {
-                    pending: "正在启动本地代理...",
-                    success: "代理已启动。",
-                    afterFocus: "kiro"
-                  })
-                }
-              >
-                启动代理
-              </button>
-              <button
-                className="ghost-button"
-                disabled={!kiroActionAvailability.restartProxy.enabled}
-                title={kiroActionAvailability.restartProxy.reason ?? undefined}
-                onClick={() =>
-                  runAction(() => requireDesktopApi().restartProxy(), {
-                    pending: "正在重启代理...",
-                    success: "代理已重启。",
-                    afterFocus: "kiro"
-                  })
-                }
-              >
-                重启代理
-              </button>
-              <button
-                className={quickstartSummary.showSetupWorkspace ? "" : "ghost-button"}
-                disabled={!kiroActionAvailability.applyRouting.enabled}
-                title={kiroActionAvailability.applyRouting.reason ?? undefined}
-                onClick={() =>
-                  runAction(() => requireDesktopApi().applyRouting(), {
-                    pending: "正在应用 Kiro 配置...",
-                    success: "Kiro 路由已应用。",
-                    afterFocus: "kiro"
-                  })
-                }
-              >
-                应用到 Kiro
-              </button>
-              <button
-                className={quickstartSummary.showSetupWorkspace ? "" : "ghost-button"}
-                disabled={!kiroActionAvailability.toggleByok.enabled}
-                title={kiroActionAvailability.toggleByok.reason ?? undefined}
-                onClick={() =>
-                  runAction(() => requireDesktopApi().setByokEnabled(!state.settings.isByokEnabled), {
-                    pending: state.settings.isByokEnabled ? "正在关闭 BYOK..." : "正在启用 BYOK...",
-                    success: state.settings.isByokEnabled ? "BYOK 已关闭。" : "BYOK 已启用。",
-                    afterFocus: "kiro"
-                  })
-                }
-              >
-                {state.settings.isByokEnabled ? "关闭 BYOK" : "启用 BYOK"}
-              </button>
-              <button
-                className={quickstartSummary.showSetupWorkspace ? "" : "ghost-button"}
-                disabled={!kiroActionAvailability.diagnose.enabled}
-                title={kiroActionAvailability.diagnose.reason ?? undefined}
-                onClick={() =>
-                  runAction(() => requireDesktopApi().diagnoseKiro(), {
-                    pending: "正在运行诊断...",
-                    success: "诊断已刷新。",
-                    afterFocus: "logs"
-                  })
-                }
-              >
-                运行诊断
-              </button>
-              {!quickstartSummary.showSetupWorkspace ? (
-                <>
-                  <button
-                    className="ghost-button"
-                    disabled={!kiroActionAvailability.stopProxy.enabled}
-                    title={kiroActionAvailability.stopProxy.reason ?? undefined}
-                    onClick={() =>
-                      runAction(() => requireDesktopApi().stopProxy(), {
-                        pending: "正在停止代理...",
-                        success: "代理已停止。",
-                        afterFocus: "kiro"
-                      })
-                    }
-                  >
-                    停止代理
-                  </button>
-                  <button
-                    className="ghost-button"
-                    disabled={!kiroActionAvailability.restore.enabled}
-                    title={kiroActionAvailability.restore.reason ?? undefined}
-                    onClick={() =>
-                      runAction(() => requireDesktopApi().restoreKiro(), {
-                        pending: "正在恢复最近备份...",
-                        success: "最近备份已恢复。",
-                        afterFocus: "kiro"
-                      })
-                    }
-                  >
-                    恢复备份
-                  </button>
-                </>
-              ) : null}
-            </div>
-            {kiroActionHints.length > 0 ? (
-              <div className="action-hints">
-                {kiroActionHints.map((hint) => (
-                  <p key={hint}>{hint}</p>
-                ))}
-              </div>
-            ) : (
-              <div className="action-hints success">
-                <p>当前 Kiro 路由动作前置条件已满足，可以继续应用配置、诊断或恢复。</p>
-              </div>
-            )}
-          </section>
-        </aside>
+        <ControlRail
+          focus={focus}
+          selectedProvider={selectedProvider}
+          selectedProviderModels={selectedProviderModels}
+          providerOptions={providerOptions}
+          presetId={presetId}
+          setPresetId={setPresetId}
+          applyPresetToDraft={applyPresetToDraft}
+          requestReplaceProviderDraft={requestReplaceProviderDraft}
+          updateProviderDraft={updateProviderDraft}
+          apiKey={apiKey}
+          setApiKey={setApiKey}
+          modelsText={modelsText}
+          setModelsText={setModelsText}
+          providerDraftStatus={providerDraftStatus}
+          providerActionAvailability={providerActionAvailability}
+          providerActionHints={providerActionHints}
+          handleFetchModels={handleFetchModels}
+          handleTestProvider={handleTestProvider}
+          handleSaveProvider={handleSaveProvider}
+          state={state}
+          proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
+          quickstartSummary={quickstartSummary}
+          kiroActionAvailability={kiroActionAvailability}
+          kiroActionHints={kiroActionHints}
+          handleToggleAutoApplyOnLaunch={handleToggleAutoApplyOnLaunch}
+          startProxy={() =>
+            runAction(() => requireDesktopApi().startProxy(), {
+              pending: "正在启动本地代理...",
+              success: "代理已启动。",
+              afterFocus: "kiro"
+            })
+          }
+          restartProxy={() =>
+            runAction(() => requireDesktopApi().restartProxy(), {
+              pending: "正在重启代理...",
+              success: "代理已重启。",
+              afterFocus: "kiro"
+            })
+          }
+          applyRouting={() =>
+            runAction(() => requireDesktopApi().applyRouting(), {
+              pending: "正在应用 Kiro 配置...",
+              success: "Kiro 路由已应用。",
+              afterFocus: "kiro"
+            })
+          }
+          toggleByok={() =>
+            runAction(() => requireDesktopApi().setByokEnabled(!state.settings.isByokEnabled), {
+              pending: state.settings.isByokEnabled ? "正在关闭 BYOK..." : "正在启用 BYOK...",
+              success: state.settings.isByokEnabled ? "BYOK 已关闭。" : "BYOK 已启用。",
+              afterFocus: "kiro"
+            })
+          }
+          runDiagnose={() =>
+            runAction(() => requireDesktopApi().diagnoseKiro(), {
+              pending: "正在运行诊断...",
+              success: "诊断已刷新。",
+              afterFocus: "logs"
+            })
+          }
+          stopProxy={() =>
+            runAction(() => requireDesktopApi().stopProxy(), {
+              pending: "正在停止代理...",
+              success: "代理已停止。",
+              afterFocus: "kiro"
+            })
+          }
+          restoreKiro={() =>
+            runAction(() => requireDesktopApi().restoreKiro(), {
+              pending: "正在恢复最近备份...",
+              success: "最近备份已恢复。",
+              afterFocus: "kiro"
+            })
+          }
+        />
 
         <section className={`workspace ${focus === "status" || focus === "logs" ? "focused" : ""}`}>
-          <section className="workspace-hero">
-            <div>
-              <span className="eyebrow">当前步骤提示</span>
-              <h2>先把路由跑通，再考虑更复杂的多模型协同。</h2>
-              <p>
-                推荐顺序：保存 Provider，测试 Provider，启动代理，启用 BYOK，运行诊断，再到右侧做一次最小模型验证。
-              </p>
-              <div className="hero-progress-row">
-                <div className="hero-progress-copy">
-                  <strong>接入进度 {quickstartSummary.completedCount}/{quickstartSummary.totalCount}</strong>
-                  <span>{quickstartSummary.nextLabel}</span>
-                </div>
-                <div className="hero-progress-actions">
-                  <button
-                    className="ghost-button compact-button"
-                    onClick={() => handlePrimaryWorkbenchAction()}
-                  >
-                    {primaryWorkbenchActionLabel}
-                  </button>
-                  <button
-                    className="ghost-button compact-button"
-                    onClick={() => handleSecondaryWorkbenchAction()}
-                  >
-                    {secondaryWorkbenchActionLabel}
-                  </button>
-                </div>
-              </div>
-              <div className="setup-progress-bar hero" aria-hidden="true">
-                <div className="setup-progress-fill" style={{ width: `${quickstartSummary.percent}%` }} />
-              </div>
-              <div className={`setup-banner ${quickstartSummary.isComplete ? "done" : "active"}`}>
-                <div className="setup-banner-copy">
-                  <strong>{quickstartSummary.bannerTitle}</strong>
-                  <p>{quickstartSummary.bannerDetail}</p>
-                </div>
-                <div className="setup-banner-actions">
-                  <button
-                    className="ghost-button compact-button"
-                    onClick={() => handlePrimaryWorkbenchAction()}
-                  >
-                    {primaryWorkbenchActionLabel}
-                  </button>
-                  <button
-                    className="ghost-button compact-button"
-                    onClick={() => handleSecondaryWorkbenchAction()}
-                  >
-                    {secondaryWorkbenchActionLabel}
-                  </button>
-                </div>
-              </div>
-              {primaryIssue ? (
-                <div className={`hero-callout ${primaryIssue.severity}`}>
-                  <div className="hero-callout-copy">
-                    <strong>{primaryIssue.title}</strong>
-                    <p>{primaryIssue.detail}</p>
-                  </div>
-                  <button className="ghost-button compact-button" onClick={() => handleReadinessAction(primaryIssue)}>
-                    {primaryIssue.action}
-                  </button>
-                </div>
-              ) : (
-                <div className="hero-callout success">
-                  <div className="hero-callout-copy">
-                    <strong>当前已具备最小使用条件</strong>
-                    <p>可以继续在右侧发送一次真实模型验证，或者直接通过顶部入口启动 Kiro。</p>
-                  </div>
-                  <button className="ghost-button compact-button" onClick={() => openConsole("playground")}>
-                    去做验证
-                  </button>
-                </div>
-              )}
-            </div>
-            <div className="workspace-kpis">
-              <div className="kpi-card">
-                <span>当前 Provider</span>
-                <strong>{selectedProviderLabel}</strong>
-              </div>
-              <div className="kpi-card">
-                <span>默认模型</span>
-                <strong>{selectedProvider?.defaultModel ?? "未配置"}</strong>
-              </div>
-              <div className="kpi-card">
-                <span>代理状态</span>
-                <strong>{proxyStateLabels[state.proxyStatus.state]}</strong>
-              </div>
-              <div className={`kpi-card bridge ${bridgeStatus.tone}`}>
-                <span>桌面桥接</span>
-                <strong>{bridgeStatus.complete ? "完整" : "需更新安装包"}</strong>
-              </div>
-              <div className="kpi-card">
-                <span>当前版本</span>
-                <strong>{appMeta ? `v${appMeta.version}` : "未知"}</strong>
-              </div>
-              <div className={`kpi-card health ${desktopHealth.severity}`}>
-                <span>环境自检</span>
-                <strong>{desktopHealth.items.length === 0 ? "已就绪" : `${desktopHealth.items.length} 项待处理`}</strong>
-              </div>
-            </div>
-          </section>
+          <WorkspaceHero
+            quickstartSummary={quickstartSummary}
+            primaryWorkbenchActionLabel={primaryWorkbenchActionLabel}
+            secondaryWorkbenchActionLabel={secondaryWorkbenchActionLabel}
+            handlePrimaryWorkbenchAction={handlePrimaryWorkbenchAction}
+            handleSecondaryWorkbenchAction={handleSecondaryWorkbenchAction}
+            primaryIssue={primaryIssue}
+            handleReadinessAction={handleReadinessAction}
+            openConsole={openConsole}
+            selectedProviderLabel={selectedProviderLabel}
+            selectedDefaultModel={selectedProvider?.defaultModel ?? "未配置"}
+            proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
+            bridgeStatus={bridgeStatus}
+            appMeta={appMeta}
+            desktopHealth={desktopHealth}
+          />
 
-          {quickstartSummary.showSetupWorkspace ? (
-            <section className="workspace-card setup-workspace-card">
-              <div className="card-head">
-                <div>
-                  <span className="panel-tag">Setup</span>
-                  <h3>先完成这几步，再进入常规工作台</h3>
-                </div>
-                <button className="ghost-button compact-button" onClick={() => openResource("quickstart")}>打开完整指南</button>
-              </div>
-              <section className="setup-summary-card">
-                <div className="setup-summary-head">
-                  <div>
-                    <span className="panel-tag">Blockers</span>
-                    <strong>{setupWorkspaceSummary.title}</strong>
-                  </div>
-                  <span className="tiny-meta">{setupWorkspaceSummary.blockerCount} 项</span>
-                </div>
-                <p className="setup-summary-detail">{setupWorkspaceSummary.detail}</p>
-                <div className="setup-summary-list">
-                  {setupWorkspaceSummary.items.map((item) => (
-                    <article key={`${item.source}-${item.id}`} className="setup-summary-item">
-                      <div className="setup-summary-copy">
-                        <span>{item.source === "readiness" ? "运行时阻塞" : "接入步骤"}</span>
-                        <strong>{item.title}</strong>
-                        <p>{item.detail}</p>
-                      </div>
-                      <button className="ghost-button compact-button" onClick={() => handleSetupSummaryAction(item)}>
-                        {item.actionLabel}
-                      </button>
-                    </article>
-                  ))}
-                </div>
-              </section>
-              <div className="setup-workspace-grid">
-                {quickstartChecklist.map((item, index) => (
-                  <div key={item.id} className={`quickstart-inline-item ${item.done ? "done" : ""} ${item.current ? "current" : ""}`}>
-                    <span className="quickstart-item-index">{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{item.title}</strong>
-                    <p>{item.detail}</p>
-                    <button className="ghost-button compact-button" onClick={() => handleQuickstartAction(item)}>
-                      {item.actionLabel}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : (
-            <>
-              <section className="step-strip">
-                {state.bootstrap.steps.map((step, index) => (
-                  <article key={step.key} className={`step-tile ${step.done ? "done" : ""}`}>
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{step.title}</strong>
-                    <p>{step.detail}</p>
-                  </article>
-                ))}
-              </section>
+          <SetupWorkspace
+            quickstartSummary={quickstartSummary}
+            setupWorkspaceSummary={setupWorkspaceSummary}
+            quickstartChecklist={quickstartChecklist}
+            bootstrapSteps={state.bootstrap.steps}
+            openQuickstart={() => openResource("quickstart")}
+            handleQuickstartAction={handleQuickstartAction}
+            handleSetupSummaryAction={handleSetupSummaryAction}
+          />
 
-              <section className="workspace-card quickstart-inline-card">
-                <div className="card-head">
-                  <div>
-                    <span className="panel-tag">Quickstart</span>
-                    <h3>首次接入建议顺序</h3>
-                  </div>
-                  <button className="ghost-button compact-button" onClick={() => openResource("quickstart")}>打开完整指南</button>
-                </div>
-                <div className="quickstart-inline-grid">
-                  {quickstartChecklist.map((item, index) => (
-                    <div key={item.id} className={`quickstart-inline-item ${item.done ? "done" : ""} ${item.current ? "current" : ""}`}>
-                      <span className="quickstart-item-index">{String(index + 1).padStart(2, "0")}</span>
-                      <strong>{item.title}</strong>
-                      <p>{item.detail}</p>
-                      <button className="ghost-button compact-button" onClick={() => handleQuickstartAction(item)}>
-                        {item.actionLabel}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </>
-          )}
+          <StatusOverviewPanel
+            state={state}
+            proxyStateLabel={proxyStateLabels[state.proxyStatus.state]}
+            nextRecommendedAction={primaryIssue?.action ?? state.bootstrap.steps.find((step) => !step.done)?.title ?? "可以开始实际使用"}
+          />
 
-          <section className="workspace-grid">
-            <article className="workspace-card">
-              <div className="card-head">
-                <div>
-                  <span className="panel-tag">状态</span>
-                  <h3>当前状态总览</h3>
-                </div>
-              </div>
-              <dl className="kv-grid">
-                <div><dt>BYOK</dt><dd>{state.settings.isByokEnabled ? "已启用" : "未启用"}</dd></div>
-                <div><dt>代理</dt><dd>{proxyStateLabels[state.proxyStatus.state]}</dd></div>
-                <div><dt>本地 endpoint</dt><dd>{state.proxyStatus.endpoint ?? "未启动"}</dd></div>
-                <div><dt>最近测试</dt><dd>{state.lastSuccessfulProviderTest?.modelId ?? "尚未测试"}</dd></div>
-                <div><dt>最近恢复</dt><dd>{state.lastAppliedKiroBackup?.backupPath ?? "暂无"}</dd></div>
-                <div><dt>推荐下一步</dt><dd>{primaryIssue?.action ?? state.bootstrap.steps.find((step) => !step.done)?.title ?? "可以开始实际使用"}</dd></div>
-              </dl>
-            </article>
-
-            <article className="workspace-card">
-              <div className="card-head">
-                <div>
-                  <span className="panel-tag">路由</span>
-                  <h3>Kiro 配置状态</h3>
-                </div>
-              </div>
-              <dl className="kv-grid">
-                <div><dt>settings.json</dt><dd>{state.kiroDetection.settingsPath || "未检测"}</dd></div>
-                <div><dt>profiles</dt><dd>{state.kiroDetection.profilesDir || "未检测"}</dd></div>
-                <div><dt>已检查路径</dt><dd>{state.kiroDetection.searchedInstallPaths.length || 0}</dd></div>
-                <div><dt>localRegions</dt><dd>{state.diagnose?.localRegions.join(", ") || "暂无"}</dd></div>
-                <div><dt>unsupported</dt><dd>{state.diagnose?.unsupportedOperationsSeen.join(", ") || "无"}</dd></div>
-                <div><dt>提示</dt><dd>{state.diagnose?.hint ?? "先运行诊断"}</dd></div>
-              </dl>
-              {!state.kiroDetection.installPath && state.kiroDetection.searchedInstallPaths.length > 0 ? (
-                <pre className="summary-block compact">
-                  {state.kiroDetection.searchedInstallPaths.join("\n")}
-                </pre>
-              ) : null}
-            </article>
-          </section>
-
-          {!quickstartSummary.showSetupWorkspace ? (
-            <section className="workspace-grid">
-              <article className={`workspace-card launch-card ${launchStatus.tone}`}>
-                <div className="card-head">
-                  <div>
-                    <span className="panel-tag">Launch</span>
-                    <h3>Launch Kiro with Kiro++</h3>
-                  </div>
-                  <span className="tiny-meta">{formatTime(state.lastLaunchAttempt?.finishedAt ?? state.lastLaunchAttempt?.startedAt ?? null)}</span>
-                </div>
-                <dl className="kv-grid">
-                  <div><dt>结果</dt><dd>{launchStatus.title}</dd></div>
-                  <div><dt>阶段</dt><dd>{describeLaunchStep(state.lastLaunchAttempt?.step)}</dd></div>
-                  <div><dt>endpoint</dt><dd>{state.lastLaunchAttempt?.endpoint ?? "暂无"}</dd></div>
-                  <div><dt>Kiro 路径</dt><dd>{state.lastLaunchAttempt?.installPath ?? "暂无"}</dd></div>
-                </dl>
-                <p className="launch-detail">{state.lastLaunchAttempt?.detail ?? "点击顶部入口后，这里会记录最近一次启动尝试的阶段和结果。"}</p>
-                {state.lastLaunchAttempt?.error ? (
-                  <pre className="summary-block compact">{state.lastLaunchAttempt.error}</pre>
-                ) : null}
-              </article>
-
-              <article className={`workspace-card launch-card ${bootstrapStatus.tone}`}>
-                <div className="card-head">
-                  <div>
-                    <span className="panel-tag">Bootstrap</span>
-                    <h3>启动预热状态</h3>
-                  </div>
-                  <span className="tiny-meta">{formatTime(state.lastBootstrapAttempt?.finishedAt ?? state.lastBootstrapAttempt?.startedAt ?? null)}</span>
-                </div>
-                <dl className="kv-grid">
-                  <div><dt>结果</dt><dd>{bootstrapStatus.title}</dd></div>
-                  <div><dt>阶段</dt><dd>{describeBootstrapStep(state.lastBootstrapAttempt?.step)}</dd></div>
-                  <div><dt>endpoint</dt><dd>{state.lastBootstrapAttempt?.endpoint ?? "暂无"}</dd></div>
-                  <div><dt>Kiro 路径</dt><dd>{state.lastBootstrapAttempt?.installPath ?? "暂无"}</dd></div>
-                </dl>
-                <p className="launch-detail">{state.lastBootstrapAttempt?.detail ?? "如果开启了启动时自动应用，这里会显示最近一次预热的执行结果。"}</p>
-                {state.lastBootstrapAttempt?.error ? (
-                  <pre className="summary-block compact">{state.lastBootstrapAttempt.error}</pre>
-                ) : null}
-              </article>
-            </section>
-          ) : null}
-
-          {state.readinessIssues.length > 0 ? (
-            <section className="workspace-card">
-              <div className="card-head">
-                <div>
-                  <span className="panel-tag">Readiness</span>
-                  <h3>当前阻塞项与建议动作</h3>
-                </div>
-                <span className="tiny-meta">{state.readinessIssues.length} 项</span>
-              </div>
-              <div className="issue-list">
-                {state.readinessIssues.map((issue) => (
-                  <article key={issue.key} className={`issue-row ${issue.severity}`}>
-                    <div className="issue-copy">
-                      <strong>{issue.title}</strong>
-                      <p>{issue.detail}</p>
-                    </div>
-                    <button className="ghost-button compact-button" onClick={() => handleReadinessAction(issue)}>
-                      {issue.action}
-                    </button>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {!quickstartSummary.showSetupWorkspace ? (
-            <section className="workbench-card">
-              <div className="card-head">
-                <div>
-                  <span className="panel-tag">Workbench</span>
-                  <h3>真实工作区</h3>
-                </div>
-                <div className="tab-row">
-                  <button className={workbenchTab === "logs" ? "tab-button active" : "tab-button"} onClick={() => setWorkbenchTab("logs")}>日志</button>
-                  <button className={workbenchTab === "output" ? "tab-button active" : "tab-button"} onClick={() => setWorkbenchTab("output")}>输出</button>
-                  <button className={workbenchTab === "diagnostics" ? "tab-button active" : "tab-button"} onClick={() => setWorkbenchTab("diagnostics")}>诊断摘要</button>
-                </div>
-              </div>
-
-              {viewingHistoricalBundle ? (
-                <div className="workbench-history-banner">
-                  <div className="workbench-history-banner-copy">
-                    <strong>当前工作区正在查看历史支持包快照</strong>
-                    <p>中栏内容会优先显示这份历史快照相关的摘要与辅助信息；涉及真实环境的动作会先回到最新支持包再执行。</p>
-                  </div>
-                  <div className="mini-actions">
-                    <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
-                      回到最新支持包
-                    </button>
-                    <button className="ghost-button compact-button" onClick={copySupportSnapshot}>
-                      复制支持快照
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-
-              {workbenchTab === "logs" && (
-                <div className="workbench-body">
-                  {recentLogsFromHistoricalBundle ? (
-                    <p className="workbench-history-hint">
-                      当前日志列表已切换到历史支持包
-                      {" "}
-                      <code>{state.recentLogsSource.bundleName ?? lastExportBundle?.bundleName ?? "unknown"}</code>
-                      {" "}
-                      里的请求快照；这不是实时代理日志。
-                    </p>
-                  ) : null}
-                  {!recentLogsFromHistoricalBundle ? (
-                    <div className="filter-row">
-                      <input
-                        placeholder="按 operation 过滤"
-                        value={logFilters.operation}
-                        onChange={(event) => setLogFilters((previous) => ({ ...previous, operation: event.target.value }))}
-                      />
-                      <input
-                        placeholder="HTTP 状态码"
-                        value={logFilters.status}
-                        onChange={(event) => setLogFilters((previous) => ({ ...previous, status: event.target.value }))}
-                      />
-                      <label className="checkbox">
-                        <input
-                          type="checkbox"
-                          checked={logFilters.errorOnly}
-                          onChange={(event) => setLogFilters((previous) => ({ ...previous, errorOnly: event.target.checked }))}
-                        />
-                        <span>仅失败</span>
-                      </label>
-                      <button className="ghost-button" onClick={() => refreshLogs()}>刷新日志</button>
-                    </div>
-                  ) : (
-                    <div className="mini-actions">
-                      <button className="ghost-button compact-button" onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}>
-                        打开请求文件
-                      </button>
-                      <button className="ghost-button compact-button" onClick={selectLatestExportBundle}>
-                        回到最新支持包
-                      </button>
-                    </div>
-                  )}
-                  <div className="log-list">
-                    {logRows.map((entry) => (
-                      <article key={`${entry.at}-${entry.requestId ?? entry.operation}`} className={`log-row ${entry.status >= 400 ? "error" : ""}`}>
-                        <strong>{entry.operation || "unknown"}</strong>
-                        <span>{entry.status}</span>
-                        <span>{entry.durationMs ?? 0} ms</span>
-                        <span>{entry.requestId ?? "-"}</span>
-                        <small>{formatTime(entry.at)}</small>
-                      </article>
-                    ))}
-                    {logRows.length === 0 ? <p className="empty-row">暂无日志记录。</p> : null}
-                  </div>
-                </div>
-              )}
-
-              {workbenchTab === "output" && (
-                <div className="workbench-body">
-                  {viewingHistoricalBundle ? (
-                    <p className="workbench-history-hint">这里显示的是当前桌面会话动作输出，不是历史支持包执行记录；历史支持信息请以支持包摘要和请求文件为准。</p>
-                  ) : null}
-                  <div className="summary-actions output-toolbar">
-                    <span className="snapshot-label">来源：当前桌面会话</span>
-                    <span className="tiny-meta">
-                      {outputEntries.length > 0
-                        ? `本次会话 ${formatTime(outputSessionStartedAt)} 起，累计 ${outputEntries.length} 条`
-                        : "仅记录本次打开控制台后的动作"}
-                    </span>
-                    <button className="ghost-button" onClick={copyOutputTimeline}>复制会话输出</button>
-                    <button className="ghost-button" onClick={clearOutputEntries}>清空输出</button>
-                  </div>
-                  <div className="output-list">
-                    {outputEntries.length === 0 ? (
-                      <p className="empty-row">当前还没有会话输出。你在本次打开 Kiro++ Console 期间执行的测试、配置、诊断和导出动作会显示在这里。</p>
-                    ) : null}
-                    {outputEntries.map((entry) => (
-                      <article key={entry.id} className={`output-row ${entry.tone}`}>
-                        <div className="output-meta">
-                          <strong>{entry.title}</strong>
-                          <small>{formatTime(entry.at)}</small>
-                        </div>
-                        <pre>{entry.detail}</pre>
-                      </article>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {workbenchTab === "diagnostics" && (
-                <DiagnosticsArtifactsPanel
-                  diagnosticsSummarySource={state.diagnosticsSummarySource}
-                  diagnosticsSummary={state.diagnosticsSummary}
-                  viewingHistoricalBundle={viewingHistoricalBundle}
-                  exportSummary={exportSummary}
-                  lastExportBundle={lastExportBundle}
-                  exportHistory={exportHistory}
-                  latestWorkbenchExport={latestWorkbenchExport}
-                  workbenchExportHistory={workbenchExportHistory}
-                  statusDetail={statusDetail}
-                  formatTime={formatTime}
-                  basename={basename}
-                  copyWorkbenchSnapshot={copyWorkbenchSnapshot}
-                  exportWorkbenchSnapshot={exportWorkbenchSnapshot}
-                  openLatestWorkbenchSnapshot={openLatestWorkbenchSnapshot}
-                  copyDiagnosticsSummary={copyDiagnosticsSummary}
-                  exportDiagnosticsToFile={exportDiagnosticsToFile}
-                  exportDiagnosticsZip={exportDiagnosticsZip}
-                  openExportBundleDir={openExportBundleDir}
-                  openExportZip={openExportZip}
-                  clearMissingDiagnosticsHistory={clearMissingDiagnosticsHistory}
-                  clearExportHistory={clearExportHistory}
-                  refreshDiagnose={() =>
-                    runAction(() => requireDesktopApi().diagnoseKiro(), {
-                      pending: "正在刷新诊断...",
-                      success: "诊断已刷新。",
-                      afterFocus: "logs"
-                    })
-                  }
-                  copyExportHeadline={copyExportHeadline}
-                  runRecommendedAction={runRecommendedAction}
-                  copyRecommendedAction={copyRecommendedAction}
-                  copySupportSnapshot={copySupportSnapshot}
-                  openExportArtifact={openExportArtifact}
-                  selectLatestExportBundle={selectLatestExportBundle}
-                  selectExportBundle={selectExportBundle}
-                  deleteExportBundle={deleteExportBundle}
-                  writeSnapshotPath={writeSnapshotPath}
-                  clearMissingWorkbenchExportHistory={clearMissingWorkbenchExportHistory}
-                  clearWorkbenchExportHistory={clearWorkbenchExportHistory}
-                  openWorkbenchSnapshot={openWorkbenchSnapshot}
-                  deleteWorkbenchExport={deleteWorkbenchExport}
-                />
-              )}
-            </section>
-          ) : null}
+          <WorkbenchPanel
+            quickstartShowSetupWorkspace={quickstartSummary.showSetupWorkspace}
+            launchStatus={launchStatus}
+            bootstrapStatus={bootstrapStatus}
+            lastLaunchAttempt={state.lastLaunchAttempt}
+            lastBootstrapAttempt={state.lastBootstrapAttempt}
+            formatTime={formatTime}
+            describeLaunchStep={describeLaunchStep}
+            describeBootstrapStep={describeBootstrapStep}
+            readinessIssues={state.readinessIssues}
+            handleReadinessAction={handleReadinessAction}
+            workbenchTab={workbenchTab}
+            setWorkbenchTab={setWorkbenchTab}
+            viewingHistoricalBundle={viewingHistoricalBundle}
+            selectLatestExportBundle={selectLatestExportBundle}
+            copySupportSnapshot={copySupportSnapshot}
+            recentLogsFromHistoricalBundle={recentLogsFromHistoricalBundle}
+            recentLogsSourceBundleName={state.recentLogsSource.bundleName}
+            lastExportBundle={lastExportBundle}
+            logFilters={logFilters}
+            setLogFilters={setLogFilters}
+            refreshLogs={refreshLogs}
+            openExportArtifact={openExportArtifact}
+            logRows={logRows}
+            outputEntries={outputEntries}
+            outputSessionStartedAt={outputSessionStartedAt}
+            copyOutputTimeline={copyOutputTimeline}
+            clearOutputEntries={clearOutputEntries}
+            diagnosticsSummarySource={state.diagnosticsSummarySource}
+            diagnosticsSummary={state.diagnosticsSummary}
+            exportSummary={exportSummary}
+            exportHistory={exportHistory}
+            latestWorkbenchExport={latestWorkbenchExport}
+            workbenchExportHistory={workbenchExportHistory}
+            statusDetail={statusDetail}
+            basename={basename}
+            copyWorkbenchSnapshot={copyWorkbenchSnapshot}
+            exportWorkbenchSnapshot={exportWorkbenchSnapshot}
+            openLatestWorkbenchSnapshot={openLatestWorkbenchSnapshot}
+            copyDiagnosticsSummary={copyDiagnosticsSummary}
+            exportDiagnosticsToFile={exportDiagnosticsToFile}
+            exportDiagnosticsZip={exportDiagnosticsZip}
+            openExportBundleDir={openExportBundleDir}
+            openExportZip={openExportZip}
+            clearMissingDiagnosticsHistory={clearMissingDiagnosticsHistory}
+            clearExportHistory={clearExportHistory}
+            refreshDiagnose={() =>
+              runAction(() => requireDesktopApi().diagnoseKiro(), {
+                pending: "正在刷新诊断...",
+                success: "诊断已刷新。",
+                afterFocus: "logs"
+              })
+            }
+            copyExportHeadline={copyExportHeadline}
+            runRecommendedAction={runRecommendedAction}
+            copyRecommendedAction={copyRecommendedAction}
+            selectExportBundle={selectExportBundle}
+            deleteExportBundle={deleteExportBundle}
+            writeSnapshotPath={writeSnapshotPath}
+            clearMissingWorkbenchExportHistory={clearMissingWorkbenchExportHistory}
+            clearWorkbenchExportHistory={clearWorkbenchExportHistory}
+            openWorkbenchSnapshot={openWorkbenchSnapshot}
+            deleteWorkbenchExport={deleteWorkbenchExport}
+          />
         </section>
 
         <aside className={`rail right ${focus === "playground" || focus === "logs" ? "focused" : ""}`}>
