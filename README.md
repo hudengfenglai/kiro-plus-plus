@@ -70,10 +70,17 @@ npm run desktop:package
 npm run release:prep
 ```
 
+本地桌面调试常用命令：
+
+```powershell
+npm run desktop:dev
+npm run desktop:launch-kiro
+```
+
 安装包输出位置：
 
 ```text
-release/kiro-plus-plus-0.1.0-x64.exe
+release/kiro-plus-plus-<version>-x64.exe
 ```
 
 ### DeepSeek 最短示例
@@ -172,7 +179,7 @@ node .\src\cli\main.js start
 
 当前测试规模：
 
-- `94` 个自动化测试通过
+- `125` 个自动化测试通过
 
 已经确认的协议与路由证据包括：
 
@@ -197,6 +204,7 @@ npm run release:prep
 npm run release:prep:markdown
 npm run release:prep:json
 npm run release:prep:write
+npm run release:prep:write-json
 ```
 
 用途分别是：
@@ -209,6 +217,8 @@ npm run release:prep:write
   - 生成机器可读 JSON，方便后续脚本串联
 - `release:prep:write`
   - 直接把 Markdown 发布摘要写入 `release/release-summary.md`
+- `release:prep:write-json`
+  - 直接把 JSON 发布摘要写入 `release/release-summary.json`
 
 ## 当前限制
 

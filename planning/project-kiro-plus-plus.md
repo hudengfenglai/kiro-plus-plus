@@ -35,6 +35,10 @@ Acceptance:
 - Renderer build and existing automated tests pass.
 
 Recent Progress:
+- Expanded `release:prep` coverage to check the packaged quickstart guide and `Launch Kiro with Kiro++` script, and added matching tests so release-day self-checks catch missing onboarding docs or launcher assets before publish.
+- Aligned public docs with the current script surface by documenting `desktop:dev`, `desktop:launch-kiro`, and `release:prep:write-json`, reducing drift between `package.json` and the release-facing README / LinuxDO materials.
+- Replaced hard-coded public artifact version strings in `README.md` and `docs/release/linuxdo-post.md` with the stable `kiro-plus-plus-<version>-x64.exe` pattern, reducing release-day doc drift when the packaged version changes.
+- Rewrote `docs/desktop-quickstart.md` to a Chinese-first packaged-app quickstart and aligned release-facing documentation counts with the current 125-test baseline, reducing mismatch between the installed docs, README, and release verification notes.
 - Moved the remaining renderer-local derived workbench state out of `desktop/renderer/src/App.tsx` into `desktop/renderer/src/app-derived-state.ts`, so the root renderer now delegates historical-bundle/export/playground/provider-draft view-model calculations through a dedicated pure derivation module instead of mixing them into page wiring.
 - Moved `ConsoleWorkbench` page-prop assembly into `desktop/renderer/src/app-console-props.ts`, so `App.tsx` now delegates grouped `header/leftRail/center/rightRail` wiring through a dedicated builder instead of inlining the full three-column object tree.
 - Unified the workbench recommendation/tab naming on `status` across runtime, renderer, and preview assets.

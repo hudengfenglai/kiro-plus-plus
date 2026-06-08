@@ -81,12 +81,20 @@ npm run desktop:package
 npm run release:prep
 ```
 
+如果你在本地调试桌面端：
+
+```powershell
+npm run desktop:dev
+npm run desktop:launch-kiro
+```
+
 如果你想直接生成可复制的发布摘要：
 
 ```powershell
 npm run release:prep:markdown
 npm run release:prep:json
 npm run release:prep:write
+npm run release:prep:write-json
 ```
 
 如果你先想走 CLI：
@@ -118,6 +126,7 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 - `npm run release:prep:markdown`
 - `npm run release:prep:json`
 - `npm run release:prep:write`
+- `npm run release:prep:write-json`
 - Kiro 路由诊断覆盖全部本地 region
 - 已观察到真实 Kiro 请求命中本地代理：
   - `GetUsageLimits`
@@ -137,7 +146,7 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 
 - GitHub 仓库：`https://github.com/hudengfenglai/kiro-plus-plus`
 - Release 下载：`<RELEASE_DOWNLOAD_URL>`
-- 安装包文件名：`kiro-plus-plus-0.1.0-x64.exe`
+- 安装包文件名：`kiro-plus-plus-<version>-x64.exe`
 
 如果你本身就在折腾 Kiro + BYOK，这个版本已经够直接试了。
 

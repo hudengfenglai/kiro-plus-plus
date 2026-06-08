@@ -75,9 +75,11 @@ export async function buildReleasePrepReport({
 } = {}) {
   const packagePath = join(rootDir, "package.json");
   const readmePath = join(rootDir, "README.md");
+  const desktopQuickstartPath = join(rootDir, "docs", "desktop-quickstart.md");
   const linuxdoPostPath = join(rootDir, "docs", "release", "linuxdo-post.md");
   const releaseVerificationPath = join(rootDir, "docs", "release", "release-verification.md");
   const smokeChecklistPath = join(rootDir, "docs", "release", "smoke-checklist.md");
+  const launchScriptPath = join(rootDir, "scripts", "launch-kiro.cmd");
 
   const packageJson = await readJson(packagePath);
   const version = packageJson.version;
@@ -87,6 +89,10 @@ export async function buildReleasePrepReport({
     readme: {
       path: normalizeRelativePath(relative(rootDir, readmePath)),
       exists: await exists(readmePath)
+    },
+    desktopQuickstart: {
+      path: normalizeRelativePath(relative(rootDir, desktopQuickstartPath)),
+      exists: await exists(desktopQuickstartPath)
     },
     linuxdoPost: {
       path: normalizeRelativePath(relative(rootDir, linuxdoPostPath)),
@@ -105,6 +111,10 @@ export async function buildReleasePrepReport({
   const artifact = {
     path: normalizeRelativePath(relative(rootDir, artifactPath)),
     exists: await exists(artifactPath)
+  };
+  const launcher = {
+    path: normalizeRelativePath(relative(rootDir, launchScriptPath)),
+    exists: await exists(launchScriptPath)
   };
 
   let repoUrl = null;
@@ -128,8 +138,12 @@ export async function buildReleasePrepReport({
     nextActions.unshift("先整理未提交改动，确保发布前工作区干净。");
   }
 
-  if (!docs.readme.exists || !docs.releaseVerification.exists || !docs.smokeChecklist.exists) {
-    nextActions.push("补齐 README、release-verification 和 smoke-checklist 文档。");
+  if (!docs.readme.exists || !docs.desktopQuickstart.exists || !docs.releaseVerification.exists || !docs.smokeChecklist.exists) {
+    nextActions.push("补齐 README、desktop-quickstart、release-verification 和 smoke-checklist 文档。");
+  }
+
+  if (!launcher.exists) {
+    nextActions.push("补齐 Launch Kiro with Kiro++ 启动脚本。");
   }
 
   if (placeholders.some((item) => item.placeholder === "<RELEASE_DOWNLOAD_URL>")) {
@@ -144,6 +158,7 @@ export async function buildReleasePrepReport({
     repoUrl,
     git,
     artifact,
+    launcher,
     docs,
     placeholders,
     nextActions
@@ -157,7 +172,8 @@ export function formatReleasePrepReport(report) {
     `repo: ${report.repoUrl ?? "(missing)"}`,
     `git: ${report.git.clean ? "clean" : "dirty"}${report.git.summary ? ` (${report.git.summary})` : ""}`,
     `artifact: ${report.artifact.exists ? "present" : "missing"} (${report.artifact.path})`,
-    `docs: README=${report.docs.readme.exists ? "yes" : "no"}, linuxdo=${report.docs.linuxdoPost.exists ? "yes" : "no"}, verification=${report.docs.releaseVerification.exists ? "yes" : "no"}, smoke=${report.docs.smokeChecklist.exists ? "yes" : "no"}`,
+    `launcher: ${report.launcher.exists ? "present" : "missing"} (${report.launcher.path})`,
+    `docs: README=${report.docs.readme.exists ? "yes" : "no"}, quickstart=${report.docs.desktopQuickstart.exists ? "yes" : "no"}, linuxdo=${report.docs.linuxdoPost.exists ? "yes" : "no"}, verification=${report.docs.releaseVerification.exists ? "yes" : "no"}, smoke=${report.docs.smokeChecklist.exists ? "yes" : "no"}`,
     `linuxdo post placeholders: ${report.placeholders.length}`
   ];
 
@@ -184,7 +200,8 @@ export function formatReleasePrepMarkdown(report) {
     `- Repo: ${report.repoUrl ?? "(missing)"}`,
     `- Git status: ${report.git.clean ? "clean" : `dirty (${report.git.summary})`}`,
     `- Artifact: ${report.artifact.exists ? `\`${report.artifact.path}\`` : `missing (\`${report.artifact.path}\`)`}`,
-    `- Docs: README=${report.docs.readme.exists ? "yes" : "no"}, linuxdo=${report.docs.linuxdoPost.exists ? "yes" : "no"}, verification=${report.docs.releaseVerification.exists ? "yes" : "no"}, smoke=${report.docs.smokeChecklist.exists ? "yes" : "no"}`
+    `- Launcher: ${report.launcher.exists ? `\`${report.launcher.path}\`` : `missing (\`${report.launcher.path}\`)`}`,
+    `- Docs: README=${report.docs.readme.exists ? "yes" : "no"}, quickstart=${report.docs.desktopQuickstart.exists ? "yes" : "no"}, linuxdo=${report.docs.linuxdoPost.exists ? "yes" : "no"}, verification=${report.docs.releaseVerification.exists ? "yes" : "no"}, smoke=${report.docs.smokeChecklist.exists ? "yes" : "no"}`
   ];
 
   if (report.placeholders.length > 0) {

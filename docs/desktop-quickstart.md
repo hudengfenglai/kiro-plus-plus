@@ -1,46 +1,48 @@
-# Desktop Quickstart
+# 桌面端快速开始
 
-Use this guide when you install the Windows desktop build and want the shortest path to a working Kiro++ setup.
+这份文档面向已经安装 Windows 桌面版的用户，目标是用最短路径把 Kiro++ 跑通。
 
-## First Run
+## 首次使用
 
-1. Open `Kiro++ Console`
-2. Select a provider preset
-3. Fill your API key
-4. Confirm or fetch models
-5. Test the provider
-6. Apply to Kiro
-7. Run Diagnose
-8. Launch Kiro with Kiro++
+1. 打开 `Kiro++ Console`
+2. 选择一个 Provider 预设
+3. 填写你的 API Key
+4. 拉取模型或手工确认模型列表
+5. 点击 `测试 Provider`
+6. 点击 `Apply to Kiro`
+7. 点击 `Run Diagnose`
+8. 使用 `Launch Kiro with Kiro++` 启动 Kiro
 
-## Recommended DeepSeek Setup
+## 推荐的 DeepSeek 配置
 
 - preset: `DeepSeek`
 - base URL: `https://api.deepseek.com`
-- model: `deepseek-v4-pro` or `deepseek-v4-flash`
+- model: `deepseek-v4-pro` 或 `deepseek-v4-flash`
 
-## Startup Auto-Apply
+## 启动时自动应用
 
-If you enable `启动时自动应用`, opening the desktop app will try to:
+如果你开启了 `启动时自动应用`，桌面端启动时会尝试：
 
-1. detect Kiro
-2. start the local proxy
-3. re-apply BYOK routing if coverage is missing
+1. 检测 Kiro 安装
+2. 启动本地代理
+3. 在需要时重新应用 BYOK 路由
 
-The workbench exposes:
+工作台里会分别显示：
 
-- `启动预热状态`: startup auto-apply result
-- `Launch Kiro with Kiro++`: manual launch result
+- `启动预热状态`：应用启动阶段的自动处理结果
+- `Launch Kiro with Kiro++`：手动拉起 Kiro 的结果
 
-## Support Bundle
+这样可以区分是启动预热失败，还是手动启动 Kiro 失败。
 
-If something still fails:
+## 支持包
 
-1. open `Logs & Diagnostics`
-2. export a zip support bundle
-3. inspect `summary.txt`
-4. share the bundle for troubleshooting
+如果还有问题没有解决，建议按这个顺序排查：
 
-## Restore
+1. 打开 `Logs & Diagnostics`
+2. 导出一个 zip 支持包
+3. 查看 `summary.txt`
+4. 再把支持包发到 GitHub Issue、LinuxDO 或私下排错场景里
 
-Use `恢复备份` or `BYOK OFF` to restore the latest saved Kiro settings backup.
+## 恢复配置
+
+你可以使用 `恢复备份`，或者关闭 `BYOK`，把 Kiro 恢复到最近一次保存的原始配置。

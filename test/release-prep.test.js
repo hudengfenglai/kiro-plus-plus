@@ -20,6 +20,7 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
@@ -27,6 +28,7 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
     }, null, 2));
 
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(
       join(workspace, "docs", "release", "linuxdo-post.md"),
       [
@@ -37,6 +39,7 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
     );
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const report = await buildReleasePrepReport({
@@ -51,7 +54,10 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
     assert.equal(report.repoUrl, "https://github.com/hudengfenglai/kiro-plus-plus");
     assert.equal(report.artifact.exists, true);
     assert.match(report.artifact.path, /kiro-plus-plus-0\.1\.0-x64\.exe$/);
+    assert.equal(report.launcher.exists, true);
+    assert.equal(report.launcher.path, "scripts/launch-kiro.cmd");
     assert.equal(report.docs.readme.exists, true);
+    assert.equal(report.docs.desktopQuickstart.exists, true);
     assert.equal(report.docs.linuxdoPost.exists, true);
     assert.equal(report.docs.releaseVerification.exists, true);
     assert.equal(report.docs.smokeChecklist.exists, true);
@@ -70,6 +76,8 @@ test("buildReleasePrepReport summarizes release readiness and placeholders", asy
     assert.match(text, /Kiro\+\+ release prep/);
     assert.match(text, /version: 0\.1\.0/);
     assert.match(text, /artifact: present/);
+    assert.match(text, /launcher: present \(scripts\/launch-kiro\.cmd\)/);
+    assert.match(text, /quickstart=yes/);
     assert.match(text, /linuxdo post placeholders: 1/);
     assert.match(text, /<RELEASE_DOWNLOAD_URL>/);
   } finally {
@@ -83,6 +91,7 @@ test("buildReleasePrepReport de-duplicates repeated publish placeholders", async
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
@@ -90,6 +99,7 @@ test("buildReleasePrepReport de-duplicates repeated publish placeholders", async
     }, null, 2));
 
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(
       join(workspace, "docs", "release", "linuxdo-post.md"),
       [
@@ -100,6 +110,7 @@ test("buildReleasePrepReport de-duplicates repeated publish placeholders", async
     );
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const report = await buildReleasePrepReport({
@@ -147,13 +158,16 @@ test("buildReleasePrepReport reports missing artifacts and docs", async () => {
     });
 
     assert.equal(report.artifact.exists, false);
+    assert.equal(report.launcher.exists, false);
     assert.equal(report.docs.readme.exists, false);
+    assert.equal(report.docs.desktopQuickstart.exists, false);
     assert.equal(report.docs.releaseVerification.exists, false);
     assert.equal(report.docs.smokeChecklist.exists, false);
     assert.equal(report.placeholders.length, 0);
     assert.deepEqual(report.nextActions, [
       "先运行 npm run desktop:package 生成安装包。",
-      "补齐 README、release-verification 和 smoke-checklist 文档。",
+      "补齐 README、desktop-quickstart、release-verification 和 smoke-checklist 文档。",
+      "补齐 Launch Kiro with Kiro++ 启动脚本。",
       "按 docs/release/smoke-checklist.md 完成真实烟测与截图采集。"
     ]);
   } finally {
@@ -167,15 +181,18 @@ test("buildReleasePrepReport includes clean git status", async () => {
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
       version: "0.1.0"
     }, null, 2));
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(join(workspace, "docs", "release", "linuxdo-post.md"), "# post\n");
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const report = await buildReleasePrepReport({
@@ -202,15 +219,18 @@ test("buildReleasePrepReport flags dirty git status as a next action", async () 
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
       version: "0.1.0"
     }, null, 2));
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(join(workspace, "docs", "release", "linuxdo-post.md"), "# post\n");
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const report = await buildReleasePrepReport({
@@ -239,12 +259,14 @@ test("formatReleasePrepMarkdown outputs a copyable release summary", async () =>
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
       version: "0.1.0"
     }, null, 2));
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(
       join(workspace, "docs", "release", "linuxdo-post.md"),
       [
@@ -255,6 +277,7 @@ test("formatReleasePrepMarkdown outputs a copyable release summary", async () =>
     );
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const report = await buildReleasePrepReport({
@@ -271,6 +294,8 @@ test("formatReleasePrepMarkdown outputs a copyable release summary", async () =>
     assert.match(markdown, /- Repo: https:\/\/github\.com\/hudengfenglai\/kiro-plus-plus/);
     assert.match(markdown, /- Git status: clean/);
     assert.match(markdown, /- Artifact: `release\/kiro-plus-plus-0\.1\.0-x64\.exe`/);
+    assert.match(markdown, /- Launcher: `scripts\/launch-kiro\.cmd`/);
+    assert.match(markdown, /quickstart=yes/);
     assert.match(markdown, /## Pending Replacements/);
     assert.match(markdown, /<RELEASE_DOWNLOAD_URL>/);
     assert.match(markdown, /## Next Actions/);
@@ -318,12 +343,14 @@ test("release-prep cli supports --write-markdown output file", async () => {
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
       version: "0.1.0"
     }, null, 2));
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(
       join(workspace, "docs", "release", "linuxdo-post.md"),
       [
@@ -334,6 +361,7 @@ test("release-prep cli supports --write-markdown output file", async () => {
     );
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const outputPath = join(workspace, "release", "release-summary.md");
@@ -361,12 +389,14 @@ test("release-prep cli supports --write-json output file", async () => {
   try {
     await mkdir(join(workspace, "docs", "release"), { recursive: true });
     await mkdir(join(workspace, "release"), { recursive: true });
+    await mkdir(join(workspace, "scripts"), { recursive: true });
 
     await writeFile(join(workspace, "package.json"), JSON.stringify({
       name: "kiro-plus-plus",
       version: "0.1.0"
     }, null, 2));
     await writeFile(join(workspace, "README.md"), "# Kiro++\n");
+    await writeFile(join(workspace, "docs", "desktop-quickstart.md"), "# quickstart\n");
     await writeFile(
       join(workspace, "docs", "release", "linuxdo-post.md"),
       [
@@ -377,6 +407,7 @@ test("release-prep cli supports --write-json output file", async () => {
     );
     await writeFile(join(workspace, "docs", "release", "release-verification.md"), "# verification\n");
     await writeFile(join(workspace, "docs", "release", "smoke-checklist.md"), "# smoke\n");
+    await writeFile(join(workspace, "scripts", "launch-kiro.cmd"), "@echo off\r\n");
     await writeFile(join(workspace, "release", "kiro-plus-plus-0.1.0-x64.exe"), "binary");
 
     const outputPath = join(workspace, "release", "release-summary.json");
@@ -393,6 +424,8 @@ test("release-prep cli supports --write-json output file", async () => {
     assert.equal(saved.version, "0.1.0");
     assert.equal(saved.repoUrl, "https://github.com/hudengfenglai/kiro-plus-plus");
     assert.equal(saved.artifact.exists, true);
+    assert.equal(saved.launcher.exists, true);
+    assert.equal(saved.docs.desktopQuickstart.exists, true);
     assert.ok(Array.isArray(saved.nextActions));
   } finally {
     await rm(workspace, { recursive: true, force: true });
