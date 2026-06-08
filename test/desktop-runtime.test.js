@@ -547,6 +547,11 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.match(result.text, /Desktop health severity:/);
   assert.match(result.text, /Recommended next action:/);
   assert.match(result.text, /Support snapshot headline:/);
+  assert.equal(result.recommendedAction?.actionLabel, "查看 Quickstart");
+  assert.match(result.recommendedAction?.title ?? "", /Quickstart|版本信息|桥接/);
+  assert.equal(result.latestFailure?.requestId, "demo-export");
+  assert.equal(result.latestFailure?.status, 500);
+  assert.equal(result.latestSuccess, null);
   const jsonText = await readFile(result.jsonPath, "utf8");
   const payload = JSON.parse(jsonText);
   assert.equal(payload.exportedAt, "2026-06-07T12:34:56.789Z");
@@ -579,10 +584,14 @@ test("desktop runtime exports diagnostics to a local file", async () => {
   assert.equal(state.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
   assert.equal(state.lastExportBundle?.exportedAt, "2026-06-07T12:34:56.789Z");
   assert.match(state.lastExportBundle?.headline ?? "", /建议先查看 Quickstart/);
+  assert.equal(state.lastExportBundle?.recommendedAction?.actionLabel, "查看 Quickstart");
+  assert.equal(state.lastExportBundle?.latestFailure?.requestId, "demo-export");
   assert.equal(state.lastExportBundle?.summaryPath, result.summaryPath);
   const reloadedSettings = await runtime.settingsStore.load();
   assert.equal(reloadedSettings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-07T12-34-56-789Z");
   assert.equal(reloadedSettings.runtime.lastExportBundle?.summaryPath, result.summaryPath);
+  assert.equal(reloadedSettings.runtime.lastExportBundle?.recommendedAction?.actionLabel, "查看 Quickstart");
+  assert.equal(reloadedSettings.runtime.lastExportBundle?.latestFailure?.requestId, "demo-export");
 
   await rm(dir, { recursive: true, force: true });
 });

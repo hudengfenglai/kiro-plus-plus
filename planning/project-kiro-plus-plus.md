@@ -63,6 +63,16 @@ Recent Progress:
 - Added a non-destructive "clear support bundle history" action so repeated smoke tests can reset exported-bundle state without removing local export files.
 - Persisted the currently selected support bundle history item so reopening the desktop app can return to the same historical snapshot instead of always falling back to the latest export.
 - Added single-item support-bundle history removal so operators can prune stale records without wiping the whole history or touching exported files on disk.
+- Promoted support-bundle "recommended next action" into persisted export metadata and added one-click copy actions for both the support headline and next action, making LinuxDO / GitHub support sharing faster and more consistent.
+- Added a direct "run recommended action" control to support-bundle cards so operators can immediately follow the suggested next step from historical diagnostics instead of only copying it.
+- Hardened support-bundle copy actions with a dedicated Electron clipboard bridge plus browser fallback, reducing the chance that packaged installs fail to copy diagnostics text under stricter browser clipboard conditions.
+- Turned the right-rail recent success/failure diagnostics cards into actionable helpers with direct log focusing and copyable summaries, so the side rail can feed real troubleshooting instead of only mirroring status.
+- Stored latest failure/success snapshots inside exported support-bundle metadata so historical bundle review can carry its own diagnostics context instead of depending entirely on the current live log stream.
+- Aligned historical diagnostics actions with historical data sources, so the right-rail “view details” action now opens the bundle’s own request snapshot instead of jumping into the current live log view.
+- Added a direct “return to latest support bundle” control when browsing historical diagnostics snapshots, reducing the friction of moving back to the current export state after inspection.
+- Added a one-click “copy support snapshot” action that condenses the bundle name, headline, recommended next action, and latest failure/success summaries into a short shareable text block for LinuxDO / GitHub support flows.
+- Guarded historical-bundle recommended actions so old snapshots no longer execute against the current live environment without first returning to the latest support bundle, reducing misleading cross-state operations.
+- Upgraded historical recommended actions into a one-click “return to latest, then execute” flow so operators can safely act on current state without manually switching bundles first.
 - Persisted the latest `Launch Kiro with Kiro++` attempt state so packaged-start failures now leave a visible record instead of disappearing into a silent startup path.
 - Added a dedicated launch status card to the workbench so users can see which step failed across detect/proxy/routing/launch without re-running the flow blindly.
 - Wired `autoApplyOnLaunch` into real desktop bootstrap behavior so opening the app can now auto-start the proxy and re-apply BYOK when the user enables that preference.

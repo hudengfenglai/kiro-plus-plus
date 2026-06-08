@@ -11,6 +11,7 @@ declare global {
       launchKiroWithProxy: () => Promise<unknown>;
       openResource: (resourceId: string) => Promise<unknown>;
       openPath: (target: string) => Promise<unknown>;
+      copyText?: (text: string) => Promise<boolean> | boolean;
       exportDiagnostics: () => Promise<string>;
       exportDiagnosticsToFile: () => Promise<DiagnosticsExportBundle>;
       exportDiagnosticsZip: () => Promise<DiagnosticsExportBundle>;

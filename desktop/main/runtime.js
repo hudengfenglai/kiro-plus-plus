@@ -24,6 +24,24 @@ function summarizeRecentFailure(entries) {
   return [...entries].reverse().find((entry) => entry.status >= 400) ?? null;
 }
 
+function summarizeRecentSuccess(entries) {
+  return [...entries].reverse().find((entry) => entry.status >= 200 && entry.status < 400) ?? null;
+}
+
+function toDiagnosticsLogSnapshot(entry) {
+  if (!entry) {
+    return null;
+  }
+  return {
+    operation: entry.operation || "unknown",
+    status: entry.status,
+    requestId: entry.requestId ?? undefined,
+    at: entry.at ?? undefined,
+    durationMs: typeof entry.durationMs === "number" ? entry.durationMs : undefined,
+    bodyBytes: typeof entry.bodyBytes === "number" ? entry.bodyBytes : undefined
+  };
+}
+
 function formatRecentRequestSnapshot(entries = []) {
   if (!entries.length) {
     return "Recent requests (redacted)\n- none";
@@ -205,7 +223,9 @@ function formatDiagnosticsSummary({ settings, proxyStatus, kiroDetection, diagno
     },
     appMeta: null,
     proxyStatus,
-    kiroDetection
+    isByokEnabled: settings.isByokEnabled,
+    kiroDetection,
+    diagnose
   });
   const desktopHealthPrimaryAction = getDesktopHealthPrimaryAction(desktopHealth);
   const desktopHealthHeadline = formatDesktopHealthHeadline(desktopHealth);
@@ -804,6 +824,8 @@ export class DesktopRuntime {
     const sharedState = sanitizeStateForShare(state);
     const text = formatDiagnosticsSummary(sharedState);
     const fileText = [text, "", formatRecentRequestSnapshot(state.recentLogs)].join("\n");
+    const latestFailure = toDiagnosticsLogSnapshot(summarizeRecentFailure(state.recentLogs));
+    const latestSuccess = toDiagnosticsLogSnapshot(summarizeRecentSuccess(state.recentLogs));
     const desktopHealth = buildDesktopHealthSummary({
       bridgeStatus: {
         available: true,
@@ -817,10 +839,12 @@ export class DesktopRuntime {
       },
       appMeta: null,
       proxyStatus: sharedState.proxyStatus,
+      isByokEnabled: sharedState.settings.isByokEnabled,
       kiroDetection: {
         installed: sharedState.kiroDetection.installed,
         detectionHint: sharedState.kiroDetection.detectionHint
-      }
+      },
+      diagnose: sharedState.diagnose
     });
     const desktopHealthPrimaryAction = getDesktopHealthPrimaryAction(desktopHealth);
     const desktopHealthHeadline = formatDesktopHealthHeadline(desktopHealth);
@@ -876,6 +900,9 @@ export class DesktopRuntime {
       requestsPath,
       manifestPath,
       headline: desktopHealthHeadline,
+      recommendedAction: desktopHealthPrimaryAction,
+      latestFailure,
+      latestSuccess,
       text: fileText
     };
     await this.saveLastExportBundle(bundle);

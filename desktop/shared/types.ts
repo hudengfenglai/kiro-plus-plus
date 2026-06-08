@@ -63,6 +63,23 @@ export interface KiroDiagnoseReport {
   hint: string;
 }
 
+export interface DiagnosticsRecommendedAction {
+  title: string;
+  actionLabel: string;
+  detail?: string;
+  actionKind?: string;
+  focus?: BootstrapRecommendedTab;
+}
+
+export interface DiagnosticsLogSnapshot {
+  operation: string;
+  status: number;
+  requestId?: string;
+  at?: string;
+  durationMs?: number;
+  bodyBytes?: number;
+}
+
 export interface DiagnosticsExportBundle {
   exportedAt: string;
   bundleName: string;
@@ -74,6 +91,9 @@ export interface DiagnosticsExportBundle {
   manifestPath: string;
   zipPath?: string;
   headline?: string;
+  recommendedAction?: DiagnosticsRecommendedAction;
+  latestFailure?: DiagnosticsLogSnapshot | null;
+  latestSuccess?: DiagnosticsLogSnapshot | null;
   text: string;
 }
 
@@ -88,6 +108,8 @@ export interface LaunchAttempt {
   error: string | null;
 }
 
+export type BootstrapRecommendedTab = "status" | "providers" | "kiro" | "logs" | "playground";
+
 export interface BootstrapStep {
   key: string;
   title: string;
@@ -96,7 +118,7 @@ export interface BootstrapStep {
 }
 
 export interface BootstrapState {
-  recommendedTab: "status" | "providers" | "kiro" | "logs" | "playground";
+  recommendedTab: BootstrapRecommendedTab;
   steps: BootstrapStep[];
 }
 
@@ -105,7 +127,7 @@ export interface ReadinessIssue {
   severity: "error" | "warning";
   title: string;
   detail: string;
-  focus: BootstrapState["recommendedTab"];
+  focus: BootstrapRecommendedTab;
   action: string;
 }
 

@@ -20,6 +20,7 @@ import type {
   AppMeta,
   AppState,
   DiagnosticsExportBundle,
+  DiagnosticsLogSnapshot,
   LaunchAttempt,
   PlaygroundResult,
   ProviderModel,
@@ -170,6 +171,19 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+async function writeClipboardText(text: string) {
+  const api = window.kiroPlusApp;
+  if (api?.copyText) {
+    await api.copyText(text);
+    return;
+  }
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  throw new Error("当前环境不支持复制到剪贴板。请升级最新版 Kiro++ Console。");
+}
+
 function makeActionEntry(title: string, detail: string, tone: ActionEntry["tone"]): ActionEntry {
   return {
     id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -287,7 +301,7 @@ function describeBootstrapStatus(attempt: LaunchAttempt | null) {
   };
 }
 
-function summarizeLog(entry: RequestLogEntry | null) {
+function summarizeLog(entry: DiagnosticsLogSnapshot | RequestLogEntry | null) {
   if (!entry) {
     return {
       title: "暂无记录",
@@ -299,6 +313,54 @@ function summarizeLog(entry: RequestLogEntry | null) {
     title: `${entry.operation || "未知操作"} / ${entry.status}`,
     body: `requestId ${entry.requestId ?? "-"} · ${formatTime(entry.at)}`
   };
+}
+
+function buildLogShareText(entry: DiagnosticsLogSnapshot | RequestLogEntry | null, kind: "failure" | "success") {
+  if (!entry) {
+    return kind === "failure"
+      ? "最近失败：暂无记录"
+      : "最近成功：暂无记录";
+  }
+
+  return [
+    `${kind === "failure" ? "最近失败" : "最近成功"}：${entry.operation || "未知操作"} / HTTP ${entry.status}`,
+    `requestId: ${entry.requestId ?? "-"}`,
+    `time: ${entry.at}`,
+    `durationMs: ${entry.durationMs ?? "-"}`,
+    `bodyBytes: ${entry.bodyBytes ?? "-"}`
+  ].join("\n");
+}
+
+function buildSupportSnapshotText({
+  bundleName,
+  headline,
+  recommendedAction,
+  latestFailure,
+  latestSuccess,
+  viewingHistoricalBundle
+}: {
+  bundleName: string;
+  headline?: string;
+  recommendedAction?: {
+    title: string;
+    actionLabel: string;
+    detail?: string;
+  } | null;
+  latestFailure?: DiagnosticsLogSnapshot | RequestLogEntry | null;
+  latestSuccess?: DiagnosticsLogSnapshot | RequestLogEntry | null;
+  viewingHistoricalBundle: boolean;
+}) {
+  return [
+    `支持快照：${bundleName}`,
+    viewingHistoricalBundle ? "模式：历史支持包快照" : "模式：当前支持包",
+    headline ? `首屏摘要：${headline}` : null,
+    recommendedAction
+      ? `推荐下一步：${recommendedAction.title} -> ${recommendedAction.actionLabel}`
+      : null,
+    recommendedAction?.detail ? `说明：${recommendedAction.detail}` : null,
+    buildLogShareText(latestFailure ?? null, "failure"),
+    buildLogShareText(latestSuccess ?? null, "success")
+  ].filter(Boolean).join("\n");
 }
 
 function collectUnavailableReasons(actions: Record<string, { enabled: boolean; reason: string | null }>) {
@@ -410,12 +472,14 @@ export function App() {
       bridgeStatus,
       appMeta,
       proxyStatus: state.proxyStatus,
+      isByokEnabled: state.settings.isByokEnabled,
       kiroDetection: {
         installed: state.kiroDetection.installed,
         detectionHint: state.kiroDetection.detectionHint
-      }
+      },
+      diagnose: state.diagnose
     }),
-    [appMeta, bridgeStatus, state.kiroDetection.detectionHint, state.kiroDetection.installed, state.proxyStatus]
+    [appMeta, bridgeStatus, state.diagnose, state.kiroDetection.detectionHint, state.kiroDetection.installed, state.proxyStatus, state.settings.isByokEnabled]
   );
 
   const selectedProvider = useMemo(
@@ -430,14 +494,30 @@ export function App() {
   const selectedProviderLabel = selectedProvider?.label ?? "未配置";
   const primaryIssue = state.readinessIssues[0] ?? null;
 
+  const viewingHistoricalBundle = Boolean(
+    lastExportBundle
+    && state.lastExportBundle
+    && lastExportBundle.bundleName !== state.lastExportBundle.bundleName
+  );
+
   const latestFailure = useMemo(
-    () => [...logRows].find((entry) => entry.status >= 400) ?? null,
-    [logRows]
+    () => {
+      if (viewingHistoricalBundle && lastExportBundle?.latestFailure) {
+        return lastExportBundle.latestFailure;
+      }
+      return [...logRows].find((entry) => entry.status >= 400) ?? null;
+    },
+    [lastExportBundle, logRows, viewingHistoricalBundle]
   );
 
   const latestSuccess = useMemo(
-    () => [...logRows].find((entry) => entry.status >= 200 && entry.status < 400) ?? null,
-    [logRows]
+    () => {
+      if (viewingHistoricalBundle && lastExportBundle?.latestSuccess) {
+        return lastExportBundle.latestSuccess;
+      }
+      return [...logRows].find((entry) => entry.status >= 200 && entry.status < 400) ?? null;
+    },
+    [lastExportBundle, logRows, viewingHistoricalBundle]
   );
   const launchStatus = useMemo(
     () => describeLaunchStatus(state.lastLaunchAttempt),
@@ -486,6 +566,7 @@ export function App() {
     return {
       bundleName: lastExportBundle.bundleName || basename(lastExportBundle.bundleDir),
       headline: lastExportBundle.headline ?? "",
+      recommendedAction: lastExportBundle.recommendedAction ?? null,
       zipName: basename(lastExportBundle.zipPath ?? null),
       readmeName: basename(lastExportBundle.readmePath),
       summaryName: basename(lastExportBundle.summaryPath),
@@ -499,12 +580,6 @@ export function App() {
   const exportHistory = useMemo(
     () => state.exportHistory ?? [],
     [state.exportHistory]
-  );
-
-  const viewingHistoricalBundle = Boolean(
-    lastExportBundle
-    && state.lastExportBundle
-    && lastExportBundle.bundleName !== state.lastExportBundle.bundleName
   );
 
   const selectedProviderModels = useMemo(
@@ -677,7 +752,7 @@ export function App() {
   }
 
   async function handleDesktopHealthAction(item: {
-    actionKind: "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy";
+    actionKind: "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy" | "enable-byok" | "refresh-diagnose";
     focus: ConsoleFocus;
   }) {
     switch (item.actionKind) {
@@ -701,6 +776,18 @@ export function App() {
           pending: "正在启动本地代理...",
           success: "代理已启动。",
           afterFocus: "kiro"
+        });
+      case "enable-byok":
+        return runAction(() => requireDesktopApi().setByokEnabled(true), {
+          pending: "正在启用 BYOK...",
+          success: "BYOK 已启用。",
+          afterFocus: "kiro"
+        });
+      case "refresh-diagnose":
+        return runAction(() => requireDesktopApi().diagnoseKiro(), {
+          pending: "正在刷新诊断...",
+          success: "诊断已刷新。",
+          afterFocus: "logs"
         });
       default:
         openConsole(item.focus);
@@ -878,7 +965,7 @@ export function App() {
     await runAction(
       async () => {
         const text = diagnosticsSummary || await requireDesktopApi().exportDiagnostics();
-        await navigator.clipboard.writeText(text);
+        await writeClipboardText(text);
         setDiagnosticsSummary(text);
         return text;
       },
@@ -961,6 +1048,147 @@ export function App() {
     );
   }
 
+  async function copyExportHeadline() {
+    if (!exportSummary?.headline) {
+      setStatus("当前支持包没有可复制的首屏摘要。");
+      return;
+    }
+    await runAction(
+      async () => {
+        await writeClipboardText(exportSummary.headline);
+        return exportSummary.headline;
+      },
+      {
+        pending: "正在复制首屏摘要...",
+        success: "首屏摘要已复制。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function copyRecommendedAction() {
+    const action = exportSummary?.recommendedAction;
+    if (!action?.title || !action?.actionLabel) {
+      setStatus("当前支持包没有可复制的推荐下一步。");
+      return;
+    }
+    const text = [`推荐下一步：${action.title} -> ${action.actionLabel}`, action.detail ? `说明：${action.detail}` : null]
+      .filter(Boolean)
+      .join("\n");
+    await runAction(
+      async () => {
+        await writeClipboardText(text);
+        return text;
+      },
+      {
+        pending: "正在复制推荐下一步...",
+        success: "推荐下一步已复制。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function copySupportSnapshot() {
+    if (!exportSummary) {
+      setStatus("当前没有可复制的支持快照。");
+      return;
+    }
+    const text = buildSupportSnapshotText({
+      bundleName: exportSummary.bundleName,
+      headline: exportSummary.headline,
+      recommendedAction: exportSummary.recommendedAction,
+      latestFailure,
+      latestSuccess,
+      viewingHistoricalBundle
+    });
+    await runAction(
+      async () => {
+        await writeClipboardText(text);
+        return text;
+      },
+      {
+        pending: "正在复制支持快照...",
+        success: "支持快照已复制。",
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  async function runRecommendedAction() {
+    const action = exportSummary?.recommendedAction;
+    if (!action?.actionKind) {
+      setStatus("当前支持包没有可执行的推荐下一步。");
+      return;
+    }
+    if (viewingHistoricalBundle) {
+      const latestBundle = state.lastExportBundle ?? exportHistory[0] ?? null;
+      if (!latestBundle) {
+        setStatus("当前没有可切换的最新支持包。");
+        return;
+      }
+      const nextState = await selectExportBundleState(latestBundle);
+      const nextAction = nextState.lastExportBundle?.recommendedAction ?? null;
+      if (!nextAction?.actionKind) {
+        setStatus("已回到最新支持包，但当前没有可执行的推荐下一步。");
+        return;
+      }
+      await handleDesktopHealthAction({
+        actionKind: nextAction.actionKind as "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy" | "enable-byok" | "refresh-diagnose",
+        focus: (nextAction.focus as ConsoleFocus | undefined) ?? "status"
+      });
+      return;
+    }
+    await handleDesktopHealthAction({
+      actionKind: action.actionKind as "open-quickstart" | "open-logs" | "open-kiro" | "start-proxy" | "enable-byok" | "refresh-diagnose",
+      focus: (action.focus as ConsoleFocus | undefined) ?? "status"
+    });
+  }
+
+  async function copyLogSummary(entry: DiagnosticsLogSnapshot | RequestLogEntry | null, kind: "failure" | "success") {
+    const text = buildLogShareText(entry, kind);
+    await runAction(
+      async () => {
+        await writeClipboardText(text);
+        return text;
+      },
+      {
+        pending: `正在复制最近${kind === "failure" ? "失败" : "成功"}摘要...`,
+        success: `最近${kind === "failure" ? "失败" : "成功"}摘要已复制。`,
+        afterFocus: "logs"
+      }
+    );
+  }
+
+  function focusLogEntry(entry: DiagnosticsLogSnapshot | RequestLogEntry | null) {
+    if (!entry) {
+      setStatus("当前没有可定位的请求记录。");
+      return;
+    }
+    const nextFilters = {
+      operation: entry.operation || "",
+      status: String(entry.status ?? ""),
+      errorOnly: entry.status >= 400
+    };
+    setLogFilters(nextFilters);
+    setFocus("logs");
+    setWorkbenchTab("logs");
+    setView("console");
+    setStatus(`已定位到 ${entry.operation || "未知操作"} / ${entry.status}`);
+    void refreshLogs(nextFilters);
+  }
+
+  async function handleDiagnosticLogAction(entry: DiagnosticsLogSnapshot | RequestLogEntry | null) {
+    if (!entry) {
+      setStatus("当前没有可定位的请求记录。");
+      return;
+    }
+    if (viewingHistoricalBundle) {
+      await openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件");
+      return;
+    }
+    focusLogEntry(entry);
+  }
+
   async function openExportZip() {
     const zipPath = lastExportBundle?.zipPath;
     if (!zipPath) {
@@ -993,7 +1221,22 @@ export function App() {
   }
 
   function selectExportBundle(bundle: DiagnosticsExportBundle) {
-    runAction(
+    selectExportBundleState(bundle).catch(() => {
+      // runAction already updates status/output
+    });
+  }
+
+  function selectLatestExportBundle() {
+    const latestBundle = state.lastExportBundle ?? exportHistory[0] ?? null;
+    if (!latestBundle) {
+      setStatus("当前没有可切换的最新支持包。");
+      return;
+    }
+    selectExportBundle(latestBundle);
+  }
+
+  function selectExportBundleState(bundle: DiagnosticsExportBundle) {
+    return runAction(
       () => requireDesktopApi().selectDiagnosticsBundle(bundle.bundleName),
       {
         pending: `正在切换支持包：${bundle.bundleName}...`,
@@ -1005,8 +1248,7 @@ export function App() {
       setState(typed);
       setLastExportBundle(typed.lastExportBundle ?? null);
       setDiagnosticsSummary(typed.lastExportBundle?.text || diagnosticsSummary);
-    }).catch(() => {
-      // runAction already updates status/output
+      return typed;
     });
   }
 
@@ -2060,6 +2302,24 @@ export function App() {
                         <div className="export-headline">
                           <strong>首屏摘要</strong>
                           <p>{exportSummary.headline}</p>
+                          <div className="mini-actions">
+                            <button className="ghost-button compact-button" onClick={copyExportHeadline}>复制首屏摘要</button>
+                          </div>
+                        </div>
+                      ) : null}
+                      {exportSummary.recommendedAction ? (
+                        <div className="export-headline export-recommendation">
+                          <strong>推荐下一步</strong>
+                          <p>{`${exportSummary.recommendedAction.title} -> ${exportSummary.recommendedAction.actionLabel}`}</p>
+                          {exportSummary.recommendedAction.detail ? (
+                            <p className="export-subtle">{exportSummary.recommendedAction.detail}</p>
+                          ) : null}
+                          <div className="mini-actions">
+                            <button className="ghost-button compact-button" onClick={runRecommendedAction}>
+                              {viewingHistoricalBundle ? "回到最新后执行" : "立即执行"}
+                            </button>
+                            <button className="ghost-button compact-button" onClick={copyRecommendedAction}>复制推荐下一步</button>
+                          </div>
                         </div>
                       ) : null}
                       <dl className="kv-grid compact">
@@ -2072,14 +2332,18 @@ export function App() {
                         <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
                       </dl>
                       <div className="export-actions">
+                        <button className="ghost-button" onClick={copySupportSnapshot}>复制支持快照</button>
                         <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
                         <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.summaryPath ?? null, "摘要文件")}>打开摘要</button>
                         <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.jsonPath ?? null, "快照文件")}>打开快照</button>
                         <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.manifestPath ?? null, "清单文件")}>打开清单</button>
                         <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.requestsPath ?? null, "请求文件")}>打开请求</button>
+                        {viewingHistoricalBundle ? (
+                          <button className="ghost-button" onClick={selectLatestExportBundle}>回到最新支持包</button>
+                        ) : null}
                       </div>
                       {viewingHistoricalBundle ? (
-                        <p className="export-hint">当前正在查看历史支持包快照；复制摘要时会复制这条历史摘要，不是实时诊断。</p>
+                        <p className="export-hint">当前正在查看历史支持包快照；复制摘要会复制这条历史摘要，推荐动作会先自动回到最新支持包，再作用于当前环境。</p>
                       ) : null}
                       {exportHistory.length > 1 ? (
                         <div className="export-history">
@@ -2205,13 +2469,24 @@ export function App() {
                     <span>最近失败</span>
                     <strong>{summarizeLog(latestFailure).title}</strong>
                     <p>{summarizeLog(latestFailure).body}</p>
+                    <div className="mini-actions">
+                      <button className="ghost-button compact-button" onClick={() => handleDiagnosticLogAction(latestFailure)}>查看详情</button>
+                      <button className="ghost-button compact-button" onClick={() => copyLogSummary(latestFailure, "failure")}>复制摘要</button>
+                    </div>
                   </article>
                   <article className="signal-card">
                     <span>最近成功</span>
                     <strong>{summarizeLog(latestSuccess).title}</strong>
                     <p>{summarizeLog(latestSuccess).body}</p>
+                    <div className="mini-actions">
+                      <button className="ghost-button compact-button" onClick={() => handleDiagnosticLogAction(latestSuccess)}>查看详情</button>
+                      <button className="ghost-button compact-button" onClick={() => copyLogSummary(latestSuccess, "success")}>复制摘要</button>
+                    </div>
                   </article>
                 </div>
+                {viewingHistoricalBundle ? (
+                  <p className="export-hint">当前右侧摘要来自历史支持包快照；“查看详情”会打开该支持包的请求文件，不会跳到当前实时日志。</p>
+                ) : null}
 
                 <div className="button-stack">
                   <button className="ghost-button" onClick={() => openResource("quickstart")}>打开 Quickstart</button>
@@ -2238,6 +2513,24 @@ export function App() {
                       <div className="export-headline compact">
                         <strong>首屏摘要</strong>
                         <p>{exportSummary.headline}</p>
+                        <div className="mini-actions">
+                          <button className="ghost-button compact-button" onClick={copyExportHeadline}>复制首屏摘要</button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {exportSummary.recommendedAction ? (
+                      <div className="export-headline compact export-recommendation">
+                        <strong>推荐下一步</strong>
+                        <p>{`${exportSummary.recommendedAction.title} -> ${exportSummary.recommendedAction.actionLabel}`}</p>
+                        {exportSummary.recommendedAction.detail ? (
+                          <p className="export-subtle">{exportSummary.recommendedAction.detail}</p>
+                        ) : null}
+                        <div className="mini-actions">
+                          <button className="ghost-button compact-button" onClick={runRecommendedAction}>
+                            {viewingHistoricalBundle ? "回到最新后执行" : "立即执行"}
+                          </button>
+                          <button className="ghost-button compact-button" onClick={copyRecommendedAction}>复制推荐下一步</button>
+                        </div>
                       </div>
                     ) : null}
                     <dl className="kv-grid compact">
@@ -2247,9 +2540,13 @@ export function App() {
                       <div><dt>清单</dt><dd>{exportSummary.manifestName}</dd></div>
                     </dl>
                     <div className="export-actions compact-export-actions">
+                      <button className="ghost-button" onClick={copySupportSnapshot}>复制支持快照</button>
                       <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.readmePath ?? null, "说明文件")}>打开说明</button>
                       <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.summaryPath ?? null, "摘要文件")}>打开摘要</button>
                       <button className="ghost-button" onClick={() => openExportArtifact(lastExportBundle?.manifestPath ?? null, "清单文件")}>打开清单</button>
+                      {viewingHistoricalBundle ? (
+                        <button className="ghost-button" onClick={selectLatestExportBundle}>回到最新</button>
+                      ) : null}
                     </div>
                     {exportHistory.length > 1 ? (
                       <div className="export-history compact-export-history">

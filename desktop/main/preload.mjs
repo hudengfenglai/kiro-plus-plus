@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { clipboard, contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS } from "../shared/ipc.js";
 
@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld("kiroPlusApp", {
   launchKiroWithProxy: () => ipcRenderer.invoke(IPC_CHANNELS.appLaunchKiro),
   openResource: (resourceId) => ipcRenderer.invoke(IPC_CHANNELS.appOpenResource, resourceId),
   openPath: (target) => ipcRenderer.invoke(IPC_CHANNELS.appOpenPath, target),
+  copyText: (text) => {
+    clipboard.writeText(String(text ?? ""));
+    return true;
+  },
   exportDiagnostics: () => ipcRenderer.invoke(IPC_CHANNELS.diagnosticsExport),
   exportDiagnosticsToFile: () => ipcRenderer.invoke(IPC_CHANNELS.diagnosticsExportFile),
   exportDiagnosticsZip: () => ipcRenderer.invoke(IPC_CHANNELS.diagnosticsExportZip),

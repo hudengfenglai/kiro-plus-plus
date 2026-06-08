@@ -700,6 +700,7 @@ test("inspectDesktopBridge reports missing methods for outdated packaged bridge"
   assert.equal(status.available, true);
   assert.equal(status.complete, false);
   assert.equal(status.tone, "warning");
+  assert.ok(status.missingMethods.includes("copyText"));
   assert.ok(status.missingMethods.includes("fetchModels"));
   assert.ok(status.missingMethods.includes("diagnoseKiro"));
   assert.match(status.detail, /请重新安装最新版 Kiro\+\+ Console/);
@@ -733,9 +734,15 @@ test("buildDesktopHealthSummary reports ready state when bridge, build, proxy, a
       endpoint: "http://127.0.0.1:43119",
       error: null
     },
+    isByokEnabled: true,
     kiroDetection: {
       installed: true,
       detectionHint: "已检测到 Kiro。"
+    },
+    diagnose: {
+      localRegions: ["us-east-1"],
+      autoModeBlocksByok: false,
+      profileAutoModeBlocksByok: false
     }
   });
 
@@ -768,6 +775,98 @@ test("buildDesktopHealthSummary prioritizes bridge and build problems for outdat
   assert.ok(summary.items.some((item) => item.key === "build-meta-missing" && item.actionKind === "open-quickstart"));
   assert.ok(summary.items.some((item) => item.key === "proxy-not-running" && item.actionKind === "start-proxy"));
   assert.ok(summary.items.some((item) => item.key === "kiro-not-detected" && item.actionKind === "open-kiro"));
+});
+
+test("buildDesktopHealthSummary flags byok disabled when proxy and kiro are ready", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge(
+      Object.fromEntries(getRequiredBridgeMethods().map((method) => [method, () => undefined]))
+    ),
+    appMeta: {
+      version: "0.1.0",
+      isPackaged: true,
+      source: "packaged",
+      buildLabel: "安装包",
+      appPath: "C:\\Program Files\\Kiro++ Console\\resources\\app.asar"
+    },
+    proxyStatus: {
+      state: "running",
+      endpoint: "http://127.0.0.1:43119",
+      error: null
+    },
+    isByokEnabled: false,
+    kiroDetection: {
+      installed: true,
+      detectionHint: "已检测到 Kiro。"
+    },
+    diagnose: null
+  });
+
+  assert.ok(summary.items.some((item) => item.key === "byok-disabled" && item.actionKind === "enable-byok"));
+});
+
+test("buildDesktopHealthSummary flags auto mode blockage before local region confirmation", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge(
+      Object.fromEntries(getRequiredBridgeMethods().map((method) => [method, () => undefined]))
+    ),
+    appMeta: {
+      version: "0.1.0",
+      isPackaged: true,
+      source: "packaged",
+      buildLabel: "安装包",
+      appPath: "C:\\Program Files\\Kiro++ Console\\resources\\app.asar"
+    },
+    proxyStatus: {
+      state: "running",
+      endpoint: "http://127.0.0.1:43119",
+      error: null
+    },
+    isByokEnabled: true,
+    kiroDetection: {
+      installed: true,
+      detectionHint: "已检测到 Kiro。"
+    },
+    diagnose: {
+      localRegions: [],
+      autoModeBlocksByok: true,
+      profileAutoModeBlocksByok: false
+    }
+  });
+
+  assert.ok(summary.items.some((item) => item.key === "diagnose-auto-mode" && item.actionKind === "refresh-diagnose"));
+});
+
+test("buildDesktopHealthSummary flags missing local region when byok is enabled", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge(
+      Object.fromEntries(getRequiredBridgeMethods().map((method) => [method, () => undefined]))
+    ),
+    appMeta: {
+      version: "0.1.0",
+      isPackaged: true,
+      source: "packaged",
+      buildLabel: "安装包",
+      appPath: "C:\\Program Files\\Kiro++ Console\\resources\\app.asar"
+    },
+    proxyStatus: {
+      state: "running",
+      endpoint: "http://127.0.0.1:43119",
+      error: null
+    },
+    isByokEnabled: true,
+    kiroDetection: {
+      installed: true,
+      detectionHint: "已检测到 Kiro。"
+    },
+    diagnose: {
+      localRegions: [],
+      autoModeBlocksByok: false,
+      profileAutoModeBlocksByok: false
+    }
+  });
+
+  assert.ok(summary.items.some((item) => item.key === "diagnose-no-local-region" && item.actionKind === "refresh-diagnose"));
 });
 
 test("formatDesktopHealthSummary renders item actions into shareable text", () => {
@@ -836,9 +935,15 @@ test("getDesktopHealthPrimaryAction returns the first actionable item or a ready
       endpoint: "http://127.0.0.1:43119",
       error: null
     },
+    isByokEnabled: true,
     kiroDetection: {
       installed: true,
       detectionHint: "已检测到 Kiro。"
+    },
+    diagnose: {
+      localRegions: ["us-east-1"],
+      autoModeBlocksByok: false,
+      profileAutoModeBlocksByok: false
     }
   }));
   assert.equal(readyAction.actionLabel, "进入 Playground");
@@ -881,9 +986,15 @@ test("formatDesktopHealthHeadline produces a short shareable recommendation", ()
       endpoint: "http://127.0.0.1:43119",
       error: null
     },
+    isByokEnabled: true,
     kiroDetection: {
       installed: true,
       detectionHint: "已检测到 Kiro。"
+    },
+    diagnose: {
+      localRegions: ["us-east-1"],
+      autoModeBlocksByok: false,
+      profileAutoModeBlocksByok: false
     }
   }));
   assert.match(readyHeadline, /环境已就绪/);

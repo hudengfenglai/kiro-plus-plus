@@ -1186,8 +1186,24 @@ pre {
   color: var(--text-soft);
 }
 
+.export-subtle {
+  margin-top: 6px !important;
+  font-size: 12px;
+}
+
 .export-headline.compact {
   margin: 8px 0 12px;
+}
+
+.export-recommendation {
+  margin-top: 0;
+}
+
+.mini-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 .export-history {

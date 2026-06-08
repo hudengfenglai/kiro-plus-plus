@@ -4,6 +4,7 @@ const REQUIRED_BRIDGE_METHODS = [
   "launchKiroWithProxy",
   "openResource",
   "openPath",
+  "copyText",
   "exportDiagnostics",
   "exportDiagnosticsToFile",
   "exportDiagnosticsZip",

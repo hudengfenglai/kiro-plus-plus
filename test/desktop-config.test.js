@@ -87,6 +87,21 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
           requestsPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\recent-requests.json",
           manifestPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-25-30-000Z\\manifest.json",
           headline: "本地代理尚未运行，建议先启动代理。",
+          recommendedAction: {
+            title: "本地代理尚未运行",
+            actionLabel: "启动代理",
+            detail: "如果要验证路由，请先启动代理。",
+            actionKind: "start-proxy",
+            focus: "kiro"
+          },
+          latestFailure: {
+            operation: "GenerateAssistantResponse",
+            status: 500,
+            requestId: "req-history-1",
+            at: "2026-06-08T10:24:00.000Z",
+            durationMs: 321,
+            bodyBytes: 42
+          },
           text: "summary-2"
         }
       ],
@@ -101,6 +116,21 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
         manifestPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z\\manifest.json",
         zipPath: "C:\\Users\\HU\\AppData\\Roaming\\Kiro++\\exports\\kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z.zip",
         headline: "当前安装包桥接不完整，建议先查看 Quickstart。",
+        recommendedAction: {
+          title: "当前安装包桥接不完整",
+          actionLabel: "查看 Quickstart",
+          detail: "缺少 3 个桥接方法，建议重新安装最新版 Kiro++ Console。",
+          actionKind: "open-quickstart",
+          focus: "status"
+        },
+        latestSuccess: {
+          operation: "GenerateCompletions",
+          status: 200,
+          requestId: "req-success-1",
+          at: "2026-06-08T10:19:00.000Z",
+          durationMs: 88,
+          bodyBytes: 12
+        },
         text: "summary"
       }
     }
@@ -111,6 +141,10 @@ test("normalizeAppSettings preserves last exported support bundle metadata", () 
   assert.equal(settings.runtime.lastExportBundle?.bundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
   assert.equal(settings.runtime.lastExportBundle?.exportedAt, "2026-06-08T10:20:30.000Z");
   assert.match(settings.runtime.lastExportBundle?.headline ?? "", /Quickstart/);
+  assert.equal(settings.runtime.lastExportBundle?.recommendedAction?.actionLabel, "查看 Quickstart");
+  assert.equal(settings.runtime.lastExportBundle?.latestSuccess?.requestId, "req-success-1");
+  assert.equal(settings.runtime.exportHistory[0].latestFailure?.requestId, "req-history-1");
+  assert.equal(settings.runtime.exportHistory[0].recommendedAction?.actionLabel, "启动代理");
   assert.match(settings.runtime.lastExportBundle?.zipPath ?? "", /\.zip$/);
   assert.equal(settings.runtime.selectedExportBundleName, "kiro-plus-plus-diagnostics-2026-06-08T10-20-30-000Z");
 });

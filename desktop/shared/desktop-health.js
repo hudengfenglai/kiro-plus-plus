@@ -1,4 +1,4 @@
-export function buildDesktopHealthSummary({ bridgeStatus, appMeta, proxyStatus, kiroDetection }) {
+export function buildDesktopHealthSummary({ bridgeStatus, appMeta, proxyStatus, isByokEnabled, kiroDetection, diagnose }) {
   const items = [];
 
   if (!bridgeStatus?.available) {
@@ -67,6 +67,42 @@ export function buildDesktopHealthSummary({ bridgeStatus, appMeta, proxyStatus, 
       actionKind: "open-kiro",
       focus: "kiro"
     });
+  }
+
+  if (kiroDetection?.installed && proxyStatus?.state === "running" && !isByokEnabled) {
+    items.push({
+      key: "byok-disabled",
+      severity: "warning",
+      title: "BYOK 尚未启用",
+      detail: "本地代理已经可用，但当前还没有启用 BYOK 路由。",
+      actionLabel: "启用 BYOK",
+      actionKind: "enable-byok",
+      focus: "kiro"
+    });
+  }
+
+  if (kiroDetection?.installed && proxyStatus?.state === "running" && isByokEnabled) {
+    if (diagnose?.autoModeBlocksByok || diagnose?.profileAutoModeBlocksByok) {
+      items.push({
+        key: "diagnose-auto-mode",
+        severity: "warning",
+        title: "Kiro Auto 模式仍在阻止本地路由",
+        detail: "当前诊断显示 Auto 模式仍可能覆盖本地 endpoint，建议先刷新诊断并检查 Kiro 配置。",
+        actionLabel: "刷新诊断",
+        actionKind: "refresh-diagnose",
+        focus: "logs"
+      });
+    } else if ((diagnose?.localRegions?.length ?? 0) === 0) {
+      items.push({
+        key: "diagnose-no-local-region",
+        severity: "warning",
+        title: "诊断尚未确认本地 endpoint 生效",
+        detail: "BYOK 已启用，但当前诊断没有发现指向本地代理的 region，建议先刷新诊断。",
+        actionLabel: "刷新诊断",
+        actionKind: "refresh-diagnose",
+        focus: "logs"
+      });
+    }
   }
 
   const highestSeverity = items.some((item) => item.severity === "error")

@@ -165,6 +165,18 @@ function normalizeDiagnosticsExportBundle(value = DEFAULT_LAST_EXPORT_BUNDLE) {
   if (!value.exportedAt || !value.bundleName || !value.bundleDir || !value.readmePath || !value.summaryPath || !value.jsonPath || !value.requestsPath || !value.manifestPath) {
     return null;
   }
+  const normalizeLogSnapshot = (snapshot) => {
+    if (!snapshot || typeof snapshot !== "object") return null;
+    if (!snapshot.operation || typeof snapshot.status !== "number") return null;
+    return {
+      operation: String(snapshot.operation),
+      status: Number(snapshot.status),
+      requestId: snapshot.requestId ? String(snapshot.requestId) : undefined,
+      at: snapshot.at ? normalizeTimestamp(snapshot.at) : undefined,
+      durationMs: typeof snapshot.durationMs === "number" ? snapshot.durationMs : undefined,
+      bodyBytes: typeof snapshot.bodyBytes === "number" ? snapshot.bodyBytes : undefined
+    };
+  };
   return {
     exportedAt: normalizeTimestamp(value.exportedAt),
     bundleName: String(value.bundleName),
@@ -176,6 +188,17 @@ function normalizeDiagnosticsExportBundle(value = DEFAULT_LAST_EXPORT_BUNDLE) {
     manifestPath: String(value.manifestPath),
     zipPath: value.zipPath ? String(value.zipPath) : undefined,
     headline: value.headline ? String(value.headline) : undefined,
+    recommendedAction: value.recommendedAction && typeof value.recommendedAction === "object"
+      ? {
+        title: String(value.recommendedAction.title ?? ""),
+        actionLabel: String(value.recommendedAction.actionLabel ?? ""),
+        detail: value.recommendedAction.detail ? String(value.recommendedAction.detail) : undefined,
+        actionKind: value.recommendedAction.actionKind ? String(value.recommendedAction.actionKind) : undefined,
+        focus: value.recommendedAction.focus ? String(value.recommendedAction.focus) : undefined
+      }
+      : undefined,
+    latestFailure: normalizeLogSnapshot(value.latestFailure),
+    latestSuccess: normalizeLogSnapshot(value.latestSuccess),
     text: String(value.text ?? "")
   };
 }
