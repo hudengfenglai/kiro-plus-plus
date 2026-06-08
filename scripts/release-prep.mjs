@@ -204,11 +204,15 @@ export function formatReleasePrepMarkdown(report) {
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const entryPath = process.argv[1];
+const cliArgs = process.argv.slice(2);
 
 if (entryPath && currentFilePath === entryPath) {
   try {
     const report = await buildReleasePrepReport();
-    process.stdout.write(`${formatReleasePrepReport(report)}\n`);
+    const output = cliArgs.includes("--markdown")
+      ? formatReleasePrepMarkdown(report)
+      : formatReleasePrepReport(report);
+    process.stdout.write(`${output}\n`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`[kiro++] release:prep failed: ${message}\n`);

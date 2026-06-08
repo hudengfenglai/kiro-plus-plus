@@ -1,14 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 
 import {
   buildReleasePrepReport,
   formatReleasePrepMarkdown,
   formatReleasePrepReport
 } from "../scripts/release-prep.mjs";
+
+const execFileAsync = promisify(execFile);
 
 test("buildReleasePrepReport summarizes release readiness and placeholders", async () => {
   const workspace = await mkdtemp(join(tmpdir(), "kiro-release-prep-"));
@@ -273,4 +277,14 @@ test("formatReleasePrepMarkdown outputs a copyable release summary", async () =>
   } finally {
     await rm(workspace, { recursive: true, force: true });
   }
+});
+
+test("release-prep cli supports --markdown output", async () => {
+  const { stdout } = await execFileAsync("node", ["./scripts/release-prep.mjs", "--markdown"], {
+    cwd: process.cwd()
+  });
+
+  assert.match(stdout, /^# Kiro\+\+ 0\.1\.0 Release Prep/m);
+  assert.doesNotMatch(stdout, /^Kiro\+\+ release prep/m);
+  assert.match(stdout, /## Summary/);
 });
