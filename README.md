@@ -172,7 +172,7 @@ node .\src\cli\main.js start
 
 当前测试规模：
 
-- `93` 个自动化测试通过
+- `94` 个自动化测试通过
 
 已经确认的协议与路由证据包括：
 
@@ -196,6 +196,7 @@ node .\src\cli\main.js start
 npm run release:prep
 npm run release:prep:markdown
 npm run release:prep:json
+npm run release:prep:write
 ```
 
 用途分别是：
@@ -206,6 +207,8 @@ npm run release:prep:json
   - 生成可复制到 GitHub Release / 发帖草稿的 Markdown 摘要
 - `release:prep:json`
   - 生成机器可读 JSON，方便后续脚本串联
+- `release:prep:write`
+  - 直接把 Markdown 发布摘要写入 `release/release-summary.md`
 
 ## 当前限制
 

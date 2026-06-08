@@ -86,6 +86,7 @@ npm run release:prep
 ```powershell
 npm run release:prep:markdown
 npm run release:prep:json
+npm run release:prep:write
 ```
 
 如果你先想走 CLI：
@@ -116,6 +117,7 @@ $env:KIRO_PLUS_MODEL = "deepseek-v4-pro"
 - `npm run release:prep`
 - `npm run release:prep:markdown`
 - `npm run release:prep:json`
+- `npm run release:prep:write`
 - Kiro 路由诊断覆盖全部本地 region
 - 已观察到真实 Kiro 请求命中本地代理：
   - `GetUsageLimits`
