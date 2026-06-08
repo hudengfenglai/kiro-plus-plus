@@ -67,6 +67,7 @@ npm test
 npm run typecheck
 npm run desktop:build
 npm run desktop:package
+npm run release:prep
 ```
 
 安装包输出位置：
@@ -171,7 +172,7 @@ node .\src\cli\main.js start
 
 当前测试规模：
 
-- `84` 个自动化测试通过
+- `93` 个自动化测试通过
 
 已经确认的协议与路由证据包括：
 
@@ -186,6 +187,25 @@ node .\src\cli\main.js start
 
 - [docs/release/release-verification.md](docs/release/release-verification.md)
 - [docs/release/smoke-checklist.md](docs/release/smoke-checklist.md)
+
+## 发布辅助命令
+
+当前仓库已经内置发布准备摘要命令：
+
+```powershell
+npm run release:prep
+npm run release:prep:markdown
+npm run release:prep:json
+```
+
+用途分别是：
+
+- `release:prep`
+  - 查看纯文本发布摘要
+- `release:prep:markdown`
+  - 生成可复制到 GitHub Release / 发帖草稿的 Markdown 摘要
+- `release:prep:json`
+  - 生成机器可读 JSON，方便后续脚本串联
 
 ## 当前限制
 

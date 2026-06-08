@@ -7,7 +7,7 @@ Scope: public-ready source tree, Windows package, desktop renderer, routing diag
 
 - `npm test`
   - Result: passed
-  - Notes: 84 tests passed, 0 failed
+  - Notes: 93 tests passed, 0 failed
 - `npm run typecheck`
   - Result: passed
 - `npm run desktop:build`
@@ -77,6 +77,7 @@ Scope: public-ready source tree, Windows package, desktop renderer, routing diag
 
 - 自动化测试、类型检查、桌面构建、Windows 打包全部通过
 - 仓库中已经有公开可读的安装、排错和发帖材料
+- 仓库中已经有 `release:prep` / `release:prep:markdown` / `release:prep:json` 三种发布摘要入口
 - Kiro 路由配置和诊断链路已有有效证据
 - 已存在真实 Kiro 流量命中本地代理的记录
 

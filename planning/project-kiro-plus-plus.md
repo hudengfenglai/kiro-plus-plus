@@ -97,7 +97,7 @@ Recent Progress:
 - Updated release-facing docs so LinuxDO post copy, release verification notes, and a dedicated manual smoke/screenshot checklist now reflect the current packaged artifact, current automated test count, and the remaining manual Kiro validation gap.
 
 Verification:
-- `npm test` passes with 84 tests.
+- `npm test` passes with 93 tests.
 - `npm run typecheck` succeeds.
 - `npm run desktop:build` succeeds.
 - Local static serving of `desktop/renderer/dist` returns HTTP 200 on `http://127.0.0.1:4191/`.
