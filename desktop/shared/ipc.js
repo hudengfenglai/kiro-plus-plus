@@ -1,5 +1,6 @@
 export const IPC_CHANNELS = {
   appGetState: "app:get-state",
+  appGetMeta: "app:get-meta",
   appBootstrap: "app:bootstrap",
   appLaunchKiro: "app:launch-kiro",
   appOpenResource: "app:open-resource",

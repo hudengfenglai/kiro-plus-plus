@@ -10,6 +10,7 @@ import { LogService } from "./services/log-service.js";
 import { SettingsStore } from "./services/settings-store.js";
 import { DesktopRuntime } from "./runtime.js";
 import { resolveResourcePath } from "./resource-paths.js";
+import { buildAppMeta } from "./app-meta.js";
 
 export function createDesktopRuntime() {
   const settingsStore = new SettingsStore({
@@ -34,6 +35,11 @@ export function createDesktopRuntime() {
 
 export function registerIpcHandlers(runtime = createDesktopRuntime()) {
   ipcMain.handle(IPC_CHANNELS.appGetState, async () => runtime.getState());
+  ipcMain.handle(IPC_CHANNELS.appGetMeta, async () => buildAppMeta({
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+    appPath: app.getAppPath()
+  }));
   ipcMain.handle(IPC_CHANNELS.appBootstrap, async () => runtime.bootstrap());
   ipcMain.handle(IPC_CHANNELS.appLaunchKiro, async () => runtime.launchKiroWithProxy());
   ipcMain.handle(IPC_CHANNELS.appOpenResource, async (_event, resourceId) => {

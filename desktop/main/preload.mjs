@@ -4,6 +4,7 @@ import { IPC_CHANNELS } from "../shared/ipc.js";
 
 contextBridge.exposeInMainWorld("kiroPlusApp", {
   getState: () => ipcRenderer.invoke(IPC_CHANNELS.appGetState),
+  getAppMeta: () => ipcRenderer.invoke(IPC_CHANNELS.appGetMeta),
   bootstrap: () => ipcRenderer.invoke(IPC_CHANNELS.appBootstrap),
   launchKiroWithProxy: () => ipcRenderer.invoke(IPC_CHANNELS.appLaunchKiro),
   openResource: (resourceId) => ipcRenderer.invoke(IPC_CHANNELS.appOpenResource, resourceId),

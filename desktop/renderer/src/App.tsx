@@ -16,6 +16,7 @@ import {
 } from "../../shared/quickstart";
 import { inspectDesktopBridge } from "../../shared/bridge-status";
 import type {
+  AppMeta,
   AppState,
   DiagnosticsExportBundle,
   LaunchAttempt,
@@ -399,6 +400,7 @@ export function App() {
   const [lastExportBundle, setLastExportBundle] = useState<DiagnosticsExportBundle | null>(null);
   const [hasBootstrapped, setHasBootstrapped] = useState(false);
   const [pendingProviderReplaceAction, setPendingProviderReplaceAction] = useState<PendingProviderReplaceAction>(null);
+  const [appMeta, setAppMeta] = useState<AppMeta | null>(null);
 
   const providerOptions = useMemo(() => Object.values(PROVIDER_PRESETS), []);
   const bridgeStatus = useMemo(() => inspectDesktopBridge(window.kiroPlusApp), []);
@@ -561,6 +563,17 @@ export function App() {
     } else {
       document.documentElement.dataset.theme = "dark";
     }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window.kiroPlusApp?.getAppMeta !== "function") {
+      return;
+    }
+    window.kiroPlusApp.getAppMeta()
+      .then((meta) => setAppMeta(meta))
+      .catch(() => {
+        // Older packaged builds may not expose app metadata yet.
+      });
   }, []);
 
   useEffect(() => {
@@ -1084,7 +1097,10 @@ export function App() {
           <div className="brand-mark">K+</div>
           <div>
             <strong>Kiro++</strong>
-            <span>本地 BYOK 路由与桌面工作台</span>
+            <span>
+              本地 BYOK 路由与桌面工作台
+              {appMeta ? ` · v${appMeta.version} · ${appMeta.buildLabel}` : " · 版本未知"}
+            </span>
           </div>
         </div>
         <div className="hero-top-actions">
@@ -1150,6 +1166,15 @@ export function App() {
               <dl className="kv-grid compact">
                 <div><dt>可用方法</dt><dd>{bridgeStatus.presentMethodCount}/{bridgeStatus.totalMethodCount}</dd></div>
                 <div><dt>状态</dt><dd>{bridgeStatus.complete ? "完整" : bridgeStatus.available ? "需更新安装包" : "桥接缺失"}</dd></div>
+              </dl>
+            </div>
+            <div className="hero-side-card">
+              <span className="panel-tag">Build</span>
+              <h3>{appMeta ? `v${appMeta.version}` : "版本未知"}</h3>
+              <p>{appMeta ? `当前运行于${appMeta.buildLabel}。` : "当前安装包还没有暴露版本元数据，建议重新安装最新版 Kiro++ Console。"}</p>
+              <dl className="kv-grid compact">
+                <div><dt>来源</dt><dd>{appMeta?.buildLabel ?? "未知"}</dd></div>
+                <div><dt>环境</dt><dd>{appMeta?.source === "packaged" ? "packaged" : appMeta?.source === "development" ? "development" : "unknown"}</dd></div>
               </dl>
             </div>
             <div className="hero-side-card quickstart-card">
@@ -1244,7 +1269,7 @@ export function App() {
           <div className="brand-mark">K+</div>
           <div>
             <strong>Kiro++ 工作台</strong>
-            <span>{status}</span>
+            <span>{status}{appMeta ? ` · v${appMeta.version} · ${appMeta.buildLabel}` : ""}</span>
           </div>
         </div>
         <div className="topbar-actions">
@@ -1662,6 +1687,10 @@ export function App() {
               <div className={`kpi-card bridge ${bridgeStatus.tone}`}>
                 <span>桌面桥接</span>
                 <strong>{bridgeStatus.complete ? "完整" : "需更新安装包"}</strong>
+              </div>
+              <div className="kpi-card">
+                <span>当前版本</span>
+                <strong>{appMeta ? `v${appMeta.version}` : "未知"}</strong>
               </div>
             </div>
           </section>

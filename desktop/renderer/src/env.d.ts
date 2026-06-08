@@ -1,11 +1,12 @@
 /// <reference types="vite/client" />
 
-import type { AppState, DiagnosticsExportBundle, PlaygroundRequest } from "../../shared/types";
+import type { AppMeta, AppState, DiagnosticsExportBundle, PlaygroundRequest } from "../../shared/types";
 
 declare global {
   interface Window {
     kiroPlusApp: {
       getState: () => Promise<AppState>;
+      getAppMeta?: () => Promise<AppMeta>;
       bootstrap: () => Promise<AppState>;
       launchKiroWithProxy: () => Promise<unknown>;
       openResource: (resourceId: string) => Promise<unknown>;

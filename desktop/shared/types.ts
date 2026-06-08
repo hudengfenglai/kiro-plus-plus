@@ -24,6 +24,14 @@ export interface ProxyStatus {
   error: string | null;
 }
 
+export interface AppMeta {
+  version: string;
+  isPackaged: boolean;
+  source: "packaged" | "development";
+  buildLabel: string;
+  appPath: string;
+}
+
 export interface PlaygroundRequest {
   providerId: string;
   modelId: string;

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { IPC_CHANNELS } from "../desktop/shared/ipc.js";
+
 test("electron main bootstraps runtime on app ready", async () => {
   const calls = [];
 
@@ -51,4 +53,8 @@ test("electron main can bootstrap before launch-kiro flow", async () => {
   await simulateWhenReady({ launchArgv: ["--launch-kiro"] });
 
   assert.deepEqual(calls, ["register", "bootstrap", "create-window", "launch"]);
+});
+
+test("desktop ipc channels expose app meta endpoint", () => {
+  assert.equal(IPC_CHANNELS.appGetMeta, "app:get-meta");
 });
