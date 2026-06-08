@@ -15,6 +15,7 @@ import {
   type QuickstartItem
 } from "../../shared/quickstart";
 import { inspectDesktopBridge } from "../../shared/bridge-status";
+import { buildDesktopHealthSummary } from "../../shared/desktop-health";
 import type {
   AppMeta,
   AppState,
@@ -404,6 +405,18 @@ export function App() {
 
   const providerOptions = useMemo(() => Object.values(PROVIDER_PRESETS), []);
   const bridgeStatus = useMemo(() => inspectDesktopBridge(window.kiroPlusApp), []);
+  const desktopHealth = useMemo(
+    () => buildDesktopHealthSummary({
+      bridgeStatus,
+      appMeta,
+      proxyStatus: state.proxyStatus,
+      kiroDetection: {
+        installed: state.kiroDetection.installed,
+        detectionHint: state.kiroDetection.detectionHint
+      }
+    }),
+    [appMeta, bridgeStatus, state.kiroDetection.detectionHint, state.kiroDetection.installed, state.proxyStatus]
+  );
 
   const selectedProvider = useMemo(
     () =>
@@ -1177,6 +1190,20 @@ export function App() {
                 <div><dt>环境</dt><dd>{appMeta?.source === "packaged" ? "packaged" : appMeta?.source === "development" ? "development" : "unknown"}</dd></div>
               </dl>
             </div>
+            <div className={`hero-side-card health-card ${desktopHealth.severity}`}>
+              <span className="panel-tag">Health</span>
+              <h3>{desktopHealth.summary}</h3>
+              <p>{desktopHealth.detail}</p>
+              <div className="health-list">
+                {desktopHealth.items.length === 0 ? (
+                  <p className="health-item ok">当前桌面环境没有明显阻塞项。</p>
+                ) : (
+                  desktopHealth.items.slice(0, 3).map((item) => (
+                    <p key={item.key} className={`health-item ${item.severity}`}>{item.title}</p>
+                  ))
+                )}
+              </div>
+            </div>
             <div className="hero-side-card quickstart-card">
               <span className="panel-tag">Quickstart</span>
               <h3>最短上手</h3>
@@ -1691,6 +1718,10 @@ export function App() {
               <div className="kpi-card">
                 <span>当前版本</span>
                 <strong>{appMeta ? `v${appMeta.version}` : "未知"}</strong>
+              </div>
+              <div className={`kpi-card health ${desktopHealth.severity}`}>
+                <span>环境自检</span>
+                <strong>{desktopHealth.items.length === 0 ? "已就绪" : `${desktopHealth.items.length} 项待处理`}</strong>
               </div>
             </div>
           </section>

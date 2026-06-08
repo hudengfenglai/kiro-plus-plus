@@ -261,6 +261,40 @@ pre {
   border-color: color-mix(in srgb, var(--danger) 42%, var(--border-soft) 58%);
 }
 
+.health-card.warning,
+.kpi-card.health.warning {
+  border-color: color-mix(in srgb, var(--warning) 42%, var(--border-soft) 58%);
+}
+
+.health-card.error,
+.kpi-card.health.error {
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border-soft) 58%);
+}
+
+.health-list {
+  display: grid;
+  gap: 6px;
+}
+
+.health-item {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-soft);
+}
+
+.health-item.error {
+  color: var(--danger);
+}
+
+.health-item.warning {
+  color: var(--warning);
+}
+
+.health-item.ok,
+.health-item.info {
+  color: var(--text-soft);
+}
+
 .landing-hero {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) 340px;

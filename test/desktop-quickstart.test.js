@@ -11,6 +11,7 @@ import {
   summarizeQuickstartChecklist
 } from "../desktop/shared/quickstart.js";
 import { getRequiredBridgeMethods, inspectDesktopBridge } from "../desktop/shared/bridge-status.js";
+import { buildDesktopHealthSummary } from "../desktop/shared/desktop-health.js";
 
 function makeState(overrides = {}) {
   const provider = {
@@ -708,4 +709,58 @@ test("inspectDesktopBridge reports unavailable bridge when preload did not injec
   assert.equal(status.totalMethodCount, getRequiredBridgeMethods().length);
   assert.equal(status.tone, "error");
   assert.match(status.detail, /没有注入 Kiro\+\+ 桌面桥接/);
+});
+
+test("buildDesktopHealthSummary reports ready state when bridge, build, proxy, and kiro detection are healthy", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge(
+      Object.fromEntries(getRequiredBridgeMethods().map((method) => [method, () => undefined]))
+    ),
+    appMeta: {
+      version: "0.1.0",
+      isPackaged: true,
+      source: "packaged",
+      buildLabel: "安装包",
+      appPath: "C:\\Program Files\\Kiro++ Console\\resources\\app.asar"
+    },
+    proxyStatus: {
+      state: "running",
+      endpoint: "http://127.0.0.1:43119",
+      error: null
+    },
+    kiroDetection: {
+      installed: true,
+      detectionHint: "已检测到 Kiro。"
+    }
+  });
+
+  assert.equal(summary.severity, "success");
+  assert.equal(summary.items.length, 0);
+  assert.match(summary.summary, /已就绪/);
+});
+
+test("buildDesktopHealthSummary prioritizes bridge and build problems for outdated installs", () => {
+  const summary = buildDesktopHealthSummary({
+    bridgeStatus: inspectDesktopBridge({
+      getState: () => undefined,
+      bootstrap: () => undefined,
+      launchKiroWithProxy: () => undefined
+    }),
+    appMeta: null,
+    proxyStatus: {
+      state: "stopped",
+      endpoint: null,
+      error: null
+    },
+    kiroDetection: {
+      installed: false,
+      detectionHint: "尚未检测到 Kiro 安装。"
+    }
+  });
+
+  assert.equal(summary.severity, "warning");
+  assert.ok(summary.items.some((item) => item.key === "bridge-outdated"));
+  assert.ok(summary.items.some((item) => item.key === "build-meta-missing"));
+  assert.ok(summary.items.some((item) => item.key === "proxy-not-running"));
+  assert.ok(summary.items.some((item) => item.key === "kiro-not-detected"));
 });
